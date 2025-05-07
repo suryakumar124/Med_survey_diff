@@ -1,0 +1,343 @@
+# Medical Survey Platform - Next.js Frontend with Express.js Backend
+
+## Project Overview
+This project is a survey application for doctors built with Next.js (frontend), Express.js (backend) and MongoDB with TypeORM. The platform allows pharmaceutical companies (clients) to create surveys for doctors to complete. Doctors earn points for completing surveys, which can be redeemed for money or other rewards.
+
+## User Roles
+1. **Doctors** - Complete surveys and earn points
+2. **Representatives (Reps)** - Onboard doctors and track their activity
+3. **Clients (Pharma Companies)** - Create surveys, manage reps, and view analytics
+4. **Super Admin** - Manage the entire platform
+
+## Technical Stack
+- Frontend: Next.js with React
+- Backend: Express.js with Node.js
+- Database: MongoDB
+- ORM: TypeORM with MongoDB adapter
+- Authentication: JWT with Passport.js
+- Email Service: SendGrid/Nodemailer
+- Styling: Tailwind CSS
+- Deployment: Vercel (Frontend), Heroku/AWS (Backend)
+
+## Database Structure
+
+### Entity Relationships
+
+- **User**: Base entity for all users with common fields
+  - Has one-to-one relationship with Doctor, Rep, or Client based on role
+  - Fields: id, email, name, password, phone, role, status, profilePicture, createdAt, updatedAt
+
+- **Client**: Pharmaceutical companies
+  - References a User
+  - Has many Representatives
+  - Has many Surveys
+  - Has many Doctors through DoctorClientMapping
+  - Fields: id, userId, companyName, createdAt, updatedAt
+
+- **Representative**:
+  - References a User
+  - References a Client
+  - Has many Doctors through DoctorRepMapping
+  - Fields: id, userId, clientId, createdAt, updatedAt
+
+- **Doctor**:
+  - References a User
+  - Has many Clients through DoctorClientMapping
+  - Has many Representatives through DoctorRepMapping
+  - Has many SurveyResponses
+  - Has many Redemptions
+  - Fields: id, userId, specialty, totalPoints, redeemedPoints, createdAt, updatedAt
+
+- **DoctorClientMapping**:
+  - Many-to-many relationship between Doctor and Client
+  - Fields: id, doctorId, clientId, createdAt
+
+- **DoctorRepMapping**:
+  - Many-to-many relationship between Doctor and Representative
+  - Fields: id, doctorId, repId, createdAt
+
+- **Survey**:
+  - References a Client
+  - Has many SurveyQuestions
+  - Has many DoctorSurveyResponses
+  - Fields: id, clientId, title, description, points, estimatedTime, status, createdAt, updatedAt
+
+- **SurveyQuestion**:
+  - References a Survey
+  - Has many QuestionResponses
+  - Fields: id, surveyId, questionText, questionType, options, required, orderIndex, conditionalLogic, createdAt, updatedAt
+
+- **DoctorSurveyResponse**:
+  - References a Doctor
+  - References a Survey
+  - Has many QuestionResponses
+  - Fields: id, doctorId, surveyId, completed, pointsEarned, startedAt, completedAt
+
+- **QuestionResponse**:
+  - References a DoctorSurveyResponse
+  - References a SurveyQuestion
+  - Fields: id, doctorSurveyResponseId, questionId, responseData, createdAt, updatedAt
+
+- **Redemption**:
+  - References a Doctor
+  - Fields: id, doctorId, points, redemptionType, redemptionDetails, status, createdAt, updatedAt
+
+## Feature Details
+
+### Authentication
+- JWT-based authentication with Passport.js
+- Separate login pages for doctors, reps, and admins/clients
+- Password reset functionality
+- Session management
+- Role-based access control
+
+### Doctor Onboarding
+1. CSV upload for bulk onboarding (name, email, phone, optional rep)
+2. Individual doctor onboarding with manual form entry
+3. Email invitation to activate account
+4. OTP verification option for representatives to activate accounts in person
+
+### Client Dashboard
+1. **Analytics Page**:
+   - Survey completion rates
+   - Doctor engagement metrics
+   - Points distribution charts
+   - Redemption statistics
+
+2. **Doctors Management**:
+   - CSV upload for bulk onboarding
+   - Individual doctor onboarding
+   - Table view of all doctors with status
+   - Detailed doctor profile view showing:
+     - Survey completion history
+     - Points earned and redeemed
+     - Rep assignments
+     - Activity timeline
+
+3. **Representatives Management**:
+   - Add/edit representatives
+   - Assign doctors to representatives
+   - View doctor activation rates per rep
+
+4. **Survey Management**:
+   - Create new surveys with various question types:
+     - Likert scale (1-5 rating)
+     - Ranking questions
+     - Open-ended text responses
+     - Image-based questions
+     - Matrix/grid questions
+     - Conditional logic questions
+   - Survey template library
+   - Export survey data (CSV, Excel, PDF)
+   - Survey targeting based on doctor attributes
+
+### Representative Dashboard
+1. **Doctor Management**:
+   - View assigned doctors (active/inactive)
+   - Detailed doctor activity view
+   - Status tracking
+   - Onboarding assistance
+
+2. **Activation Tracking**:
+   - Track conversion rate of doctor activations
+   - Receive notifications for inactive doctors
+
+### Doctor Dashboard
+1. **Survey List**:
+   - Available surveys with details:
+     - Title
+     - Completion count
+     - Update/release date
+     - Potential points
+     - Estimated completion time
+
+2. **Completed Surveys** section
+
+3. **Profile Management**:
+   - Update personal information
+   - Profile picture upload
+
+4. **Points Management**:
+   - Total points overview
+   - Points redeemed
+   - Points available for redemption
+   - Redemption options (UPI or Amazon wallet)
+   - Transaction history
+
+### Notification System
+1. Email notifications for:
+   - Doctor account activation
+   - New survey availability
+   - Points earned
+   - Redemption status
+
+2. In-app notifications
+
+## Implementation Plan
+
+### Phase 1: Setup & Authentication
+1. Initialize Next.js project for frontend
+2. Set up Express.js backend with TypeORM and MongoDB
+3. Create entity classes
+4. Implement JWT authentication with Passport.js
+5. Create login pages for different user roles
+
+### Phase 2: Core Features
+1. Client dashboard development
+2. Representative dashboard development
+3. Doctor dashboard development
+4. Survey creation system
+5. Basic notification system
+
+### Phase 3: Advanced Features
+1. Analytics implementation
+2. CSV import/export functionality
+3. Advanced survey question types
+4. Points redemption system
+5. Enhanced notification system
+
+### Phase 4: Testing & Deployment
+1. Unit testing
+2. Integration testing
+3. User acceptance testing
+4. Deployment (Frontend to Vercel, Backend to Heroku/AWS)
+5. Documentation
+
+## Project Structure
+/
+├── frontend/                 # Next.js Frontend Application
+│   ├── public/
+│   ├── src/
+│   │   ├── app/              # App directory with routes
+│   │   │   ├── client/
+│   │   │   ├── rep/
+│   │   │   ├── doctor/
+│   │   │   ├── login/
+│   │   │   └── page.tsx
+│   │   ├── components/
+│   │   │   ├── common/
+│   │   │   ├── client/
+│   │   │   ├── rep/
+│   │   │   └── doctor/
+│   │   ├── hooks/
+│   │   ├── services/         # API service layer
+│   │   ├── types/
+│   │   └── utils/
+│   ├── tailwind.config.js
+│   ├── next.config.js
+│   └── package.json
+│
+├── backend/                  # Express.js Backend Application
+│   ├── src/
+│   │   ├── config/           # Configuration files
+│   │   │   ├── database.ts
+│   │   │   ├── passport.ts
+│   │   │   └── env.ts
+│   │   ├── controllers/      # Request handlers
+│   │   │   ├── authController.ts
+│   │   │   ├── clientController.ts
+│   │   │   ├── repController.ts
+│   │   │   ├── doctorController.ts
+│   │   │   └── surveyController.ts
+│   │   ├── entities/         # TypeORM entities
+│   │   │   ├── User.ts
+│   │   │   ├── Client.ts
+│   │   │   ├── Representative.ts
+│   │   │   ├── Doctor.ts
+│   │   │   ├── Survey.ts
+│   │   │   └── ...
+│   │   ├── middleware/       # Custom middleware
+│   │   │   ├── auth.ts
+│   │   │   ├── validation.ts
+│   │   │   └── error.ts
+│   │   ├── repositories/     # Data access layer
+│   │   ├── routes/           # API routes
+│   │   │   ├── authRoutes.ts
+│   │   │   ├── clientRoutes.ts
+│   │   │   ├── repRoutes.ts
+│   │   │   ├── doctorRoutes.ts
+│   │   │   └── surveyRoutes.ts
+│   │   ├── services/         # Business logic
+│   │   │   ├── userService.ts
+│   │   │   ├── surveyService.ts
+│   │   │   ├── emailService.ts
+│   │   │   └── ...
+│   │   ├── types/            # TypeScript interfaces
+│   │   ├── utils/            # Utility functions
+│   │   └── app.ts            # Express application
+│   ├── nodemon.json
+│   ├── tsconfig.json
+│   └── package.json
+│
+└── README.md
+
+## Getting Started
+1. Clone the repository
+2. Set up frontend:
+cd frontend
+npm install
+3. Set up backend:
+cd backend
+npm install
+4. Set up environment variables in `.env` files for both frontend and backend
+5. Run the development servers:
+- Frontend: `cd frontend && npm run dev`
+- Backend: `cd backend && npm run dev`
+6. Access the application at: http://localhost:3000
+
+## Environment Variables
+
+### Frontend (.env.local)
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_AUTH_ENABLED=true
+
+### Backend (.env)
+Server Configuration
+PORT=5000
+NODE_ENV=development
+API_PREFIX=/api
+MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/medical_survey_db
+JWT Configuration
+JWT_SECRET=your_generated_secret_key
+JWT_EXPIRES_IN=1d
+Email Configuration
+EMAIL_SERVICE=smtp
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USER=username
+EMAIL_PASS=password
+EMAIL_FROM=noreply@example.com
+
+## How to Use TypeORM with MongoDB
+
+1. **Database Initialization**:
+   - Initialize the TypeORM connection in `config/database.ts`
+   - Configure the MongoDB connection
+
+2. **Entity Creation**:
+   - Define entities in the `entities` folder
+   - Use TypeORM decorators to define schema and relationships
+   - Implement MongoDB-specific decorators like `@ObjectIdColumn()` for primary keys
+
+3. **Data Access**:
+   - Use TypeORM repositories for data access
+   - Implement the repository pattern in the `repositories` folder
+
+4. **API Routes**:
+   - Define routes in the `routes` folder
+   - Use controllers to handle requests
+
+5. **Controllers**:
+   - Implement controller methods in the `controllers` folder
+   - Use services for business logic
+
+## TypeORM with MongoDB Best Practices
+
+1. Use appropriate MongoDB-specific column types and decorators
+2. Implement proper indexing for frequently queried fields
+3. Use the MongoDB query builder for complex queries
+4. Implement proper error handling and logging
+5. Use transactions for multi-step operations when needed
+6. Implement proper data validation before saving to the database
+7. Consider using MongoDB's aggregation framework for complex data analysis
