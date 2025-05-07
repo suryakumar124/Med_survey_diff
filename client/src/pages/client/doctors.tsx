@@ -14,6 +14,7 @@ import { useState } from "react";
 import { Loader2, Upload, Download } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useClient } from "@/hooks/use-client";
 
 // Add doctor schema
 const addDoctorSchema = z.object({
@@ -23,11 +24,13 @@ const addDoctorSchema = z.object({
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
   phone: z.string().optional(),
   specialty: z.string().optional(),
+  clientId: z.number().optional(),
 });
 
 // Import doctors schema
 const importDoctorsSchema = z.object({
   csvData: z.string().min(1, { message: "CSV data is required" }),
+  clientId: z.number().optional(),
 });
 
 type AddDoctorData = z.infer<typeof addDoctorSchema>;
@@ -36,6 +39,7 @@ type ImportDoctorsData = z.infer<typeof importDoctorsSchema>;
 export default function ClientDoctors() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("add");
+  const { client, isLoading: clientLoading } = useClient();
 
   // Add doctor form
   const addDoctorForm = useForm<AddDoctorData>({
@@ -112,11 +116,33 @@ export default function ClientDoctors() {
   });
 
   const onAddDoctorSubmit = (data: AddDoctorData) => {
-    addDoctorMutation.mutate(data);
+    if (client) {
+      addDoctorMutation.mutate({
+        ...data,
+        clientId: client.id
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Client information not available. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const onImportDoctorsSubmit = (data: ImportDoctorsData) => {
-    importDoctorsMutation.mutate(data);
+    if (client) {
+      importDoctorsMutation.mutate({
+        ...data,
+        clientId: client.id
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Client information not available. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const downloadSampleCSV = () => {

@@ -546,6 +546,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get current client
+  app.get("/api/client/current", hasRole(["client"]), async (req, res) => {
+    try {
+      const client = await storage.getClientByUserId(req.user!.id);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      
+      res.json(client);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch client information" });
+    }
+  });
+
   // Doctor Assignment Routes
   app.post("/api/representatives/:id/doctors", hasRole(["client", "admin"]), async (req, res) => {
     try {
