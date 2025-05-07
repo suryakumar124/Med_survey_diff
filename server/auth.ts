@@ -11,7 +11,19 @@ import { fromZodError } from "zod-validation-error";
 
 declare global {
   namespace Express {
-    interface User extends User {}
+    interface User {
+      id: number;
+      email: string;
+      username: string;
+      password: string;
+      name: string;
+      phone: string | null;
+      role: string;
+      status: string;
+      profilePicture: string | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+    }
   }
 }
 
@@ -107,10 +119,21 @@ export function setupAuth(app: Express) {
 
       // Create role-specific record
       if (userData.role === "doctor") {
-        await storage.createDoctor({
+        // Create doctor record
+        const doctor = await storage.createDoctor({
           userId: user.id,
           specialty: req.body.specialty || null,
         });
+        
+        // Associate doctor with client if clientId is provided
+        if (req.body.clientId) {
+          await storage.addDoctorToClient(doctor.id, req.body.clientId);
+        }
+        
+        // Associate doctor with representative if repId is provided
+        if (req.body.repId) {
+          await storage.addDoctorToRepresentative(doctor.id, req.body.repId);
+        }
       } else if (userData.role === "client") {
         await storage.createClient({
           userId: user.id,

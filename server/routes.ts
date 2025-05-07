@@ -157,6 +157,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch doctor" });
     }
   });
+  
+  // Route to associate a doctor with a client
+  app.post("/api/doctors/:id/client/:clientId", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      const clientId = parseInt(req.params.clientId);
+      
+      // Verify doctor exists
+      const doctor = await storage.getDoctor(doctorId);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      // Verify client exists
+      const client = await storage.getClient(clientId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      
+      // Check permissions for client users
+      if (req.user.role === "client") {
+        const userClient = await storage.getClientByUserId(req.user.id);
+        if (!userClient || userClient.id !== clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your client account" });
+        }
+      }
+      
+      // Associate doctor with client
+      await storage.addDoctorToClient(doctorId, clientId);
+      
+      res.status(200).json({ message: "Doctor successfully associated with client" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to associate doctor with client" });
+    }
+  });
 
   // Survey Routes
   app.get("/api/surveys", isAuthenticated, async (req, res) => {
