@@ -127,12 +127,28 @@ export function setupAuth(app: Express) {
         
         // Associate doctor with client if clientId is provided
         if (req.body.clientId) {
-          await storage.addDoctorToClient(doctor.id, req.body.clientId);
+          const clientId = parseInt(req.body.clientId);
+          if (!isNaN(clientId)) {
+            try {
+              await storage.addDoctorToClient(doctor.id, clientId);
+              console.log(`Doctor ${doctor.id} associated with client ${clientId}`);
+            } catch (error) {
+              console.error(`Error associating doctor with client: ${error}`);
+            }
+          }
         }
         
         // Associate doctor with representative if repId is provided
         if (req.body.repId) {
-          await storage.addDoctorToRepresentative(doctor.id, req.body.repId);
+          const repId = parseInt(req.body.repId);
+          if (!isNaN(repId)) {
+            try {
+              await storage.addDoctorToRepresentative(doctor.id, repId);
+              console.log(`Doctor ${doctor.id} associated with representative ${repId}`);
+            } catch (error) {
+              console.error(`Error associating doctor with representative: ${error}`);
+            }
+          }
         }
       } else if (userData.role === "client") {
         await storage.createClient({
