@@ -13,7 +13,7 @@ const MemoryStore = createMemoryStore(session);
 // Interface for storage operations
 export interface IStorage {
   // Session store
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
 
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -86,7 +86,7 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
-  sessionStore: session.SessionStore;
+  sessionStore: session.Store;
   private users: Map<number, User>;
   private doctors: Map<number, Doctor>;
   private clients: Map<number, Client>;
@@ -579,4 +579,9 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Import the DatabaseStorage
+import { DatabaseStorage } from "./storage-db";
+
+// Comment out MemStorage and use DatabaseStorage instead
+// export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
