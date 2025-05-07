@@ -1,0 +1,102 @@
+import { Survey } from "@shared/schema";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { FileText, Clock, Award, Users, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
+
+interface SurveyCardProps {
+  survey: Survey;
+  userRole: string;
+}
+
+export function SurveyCard({ survey, userRole }: SurveyCardProps) {
+  // Status badge color
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
+      case "draft":
+        return <Badge variant="outline" className="text-gray-800">Draft</Badge>;
+      case "closed":
+        return <Badge variant="destructive">Closed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // Format minutes to a readable time
+  const formatTime = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ''}`;
+  };
+
+  // Get the appropriate link based on user role
+  const getSurveyLink = () => {
+    if (userRole === "client") {
+      return `/client/surveys/${survey.id}`;
+    } else if (userRole === "doctor") {
+      return `/doctor/available-surveys/${survey.id}`;
+    } else if (userRole === "rep") {
+      return `/rep/surveys/${survey.id}`;
+    }
+    return "#";
+  };
+
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="bg-white border-b p-4 flex flex-row justify-between items-center">
+        <div className="flex items-center space-x-4">
+          <div className="p-2 bg-primary-100 rounded-full">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-1">{survey.title}</h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              {getStatusBadge(survey.status)}
+              <span>•</span>
+              <span className="flex items-center">
+                <Clock className="h-4 w-4 mr-1" />
+                {formatTime(survey.estimatedTime)}
+              </span>
+              <span>•</span>
+              <span className="flex items-center">
+                <Award className="h-4 w-4 mr-1" />
+                {survey.points} points
+              </span>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4">
+        <div className="text-sm text-gray-600 mb-4 line-clamp-2">
+          {survey.description || "No description provided."}
+        </div>
+        
+        <div className="flex flex-wrap justify-between items-center">
+          <div className="flex items-center text-sm text-gray-600">
+            <Users className="h-4 w-4 mr-1" />
+            {survey.responseCount !== undefined ? (
+              <span>{survey.responseCount} responses</span>
+            ) : (
+              <span>0 responses</span>
+            )}
+          </div>
+          
+          <div className="mt-2 sm:mt-0">
+            <Link href={getSurveyLink()}>
+              <Button variant="outline" className="space-x-2">
+                <span>{userRole === "doctor" ? "Take Survey" : "View Details"}</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
