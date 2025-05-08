@@ -1,0 +1,72 @@
+chunk-RPCDYKBN.js?v=b62e2e01:521 Warning: validateDOMNesting(...): <a> cannot appear as a descendant of <a>.
+    at a
+    at a
+    at https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b62e2e01:352:18
+    at nav
+    at div
+    at div
+    at SidebarContent
+    at aside
+    at Sidebar (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/src/components/layout/sidebar.tsx:38:27)
+    at div
+    at MainLayout (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/src/components/layout/main-layout.tsx:24:3)
+    at DoctorDashboard (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/src/pages/doctor/dashboard.tsx:29:20)
+    at Route (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b62e2e01:338:16)
+    at ProtectedRoute (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/src/lib/protected-route.tsx:22:3)
+    at Switch (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=b62e2e01:394:17)
+    at Router
+    at Provider (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…unner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=b62e2e01:38:15)
+    at TooltipProvider (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…rkspace/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=b62e2e01:61:5)
+    at AuthProvider (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/src/hooks/use-auth.tsx:27:32)
+    at QueryClientProvider (https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.d…rkspace/node_modules/.vite/deps/@tanstack_react-query.js?v=b62e2e01:2875:3)
+    at App
+printWarning	@	chunk-RPCDYKBN.js?v=b62e2e01:521
+error	@	chunk-RPCDYKBN.js?v=b62e2e01:505
+validateDOMNesting	@	chunk-RPCDYKBN.js?v=b62e2e01:8256
+createInstance	@	chunk-RPCDYKBN.js?v=b62e2e01:8328
+completeWork	@	chunk-RPCDYKBN.js?v=b62e2e01:16290
+completeUnitOfWork	@	chunk-RPCDYKBN.js?v=b62e2e01:19224
+performUnitOfWork	@	chunk-RPCDYKBN.js?v=b62e2e01:19206
+workLoopSync	@	chunk-RPCDYKBN.js?v=b62e2e01:19137
+renderRootSync	@	chunk-RPCDYKBN.js?v=b62e2e01:19116
+performSyncWorkOnRoot	@	chunk-RPCDYKBN.js?v=b62e2e01:18874
+flushSyncCallbacks	@	chunk-RPCDYKBN.js?v=b62e2e01:9119
+(anonymous)	@	chunk-RPCDYKBN.js?v=b62e2e01:18627
+setTimeout		
+defaultScheduler	@	@tanstack_react-query.js?v=b62e2e01:546
+flush	@	@tanstack_react-query.js?v=b62e2e01:570
+batch	@	@tanstack_react-query.js?v=b62e2e01:588
+dispatch_fn	@	@tanstack_react-query.js?v=b62e2e01:1001
+setData	@	@tanstack_react-query.js?v=b62e2e01:699
+onSuccess	@	@tanstack_react-query.js?v=b62e2e01:902
+resolve	@	@tanstack_react-query.js?v=b62e2e01:456
+Promise.then		
+run	@	@tanstack_react-query.js?v=b62e2e01:498
+start	@	@tanstack_react-query.js?v=b62e2e01:536
+fetch	@	@tanstack_react-query.js?v=b62e2e01:931
+executeFetch_fn	@	@tanstack_react-query.js?v=b62e2e01:2238
+onSubscribe	@	@tanstack_react-query.js?v=b62e2e01:1942
+subscribe	@	@tanstack_react-query.js?v=b62e2e01:24
+(anonymous)	@	@tanstack_react-query.js?v=b62e2e01:3099
+subscribeToStore	@	chunk-RPCDYKBN.js?v=b62e2e01:11984
+commitHookEffectListMount	@	chunk-RPCDYKBN.js?v=b62e2e01:16915
+commitPassiveMountOnFiber	@	chunk-RPCDYKBN.js?v=b62e2e01:18156
+commitPassiveMountEffects_complete	@	chunk-RPCDYKBN.js?v=b62e2e01:18129
+commitPassiveMountEffects_begin	@	chunk-RPCDYKBN.js?v=b62e2e01:18119
+commitPassiveMountEffects	@	chunk-RPCDYKBN.js?v=b62e2e01:18109
+flushPassiveEffectsImpl	@	chunk-RPCDYKBN.js?v=b62e2e01:19490
+flushPassiveEffects	@	chunk-RPCDYKBN.js?v=b62e2e01:19447
+performSyncWorkOnRoot	@	chunk-RPCDYKBN.js?v=b62e2e01:18868
+flushSyncCallbacks	@	chunk-RPCDYKBN.js?v=b62e2e01:9119
+commitRootImpl	@	chunk-RPCDYKBN.js?v=b62e2e01:19432
+commitRoot	@	chunk-RPCDYKBN.js?v=b62e2e01:19277
+finishConcurrentRender	@	chunk-RPCDYKBN.js?v=b62e2e01:18805
+performConcurrentWorkOnRoot	@	chunk-RPCDYKBN.js?v=b62e2e01:18718
+workLoop	@	chunk-RPCDYKBN.js?v=b62e2e01:197
+flushWork	@	chunk-RPCDYKBN.js?v=b62e2e01:176
+performWorkUntilDeadline	@	chunk-RPCDYKBN.js?v=b62e2e01:384
+
+queryClient.ts:32 
+ GET https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/api/doctors 403 (Forbidden)
+queryClient.ts:15 
+ POST https://39e0ceef-e0fb-4e0c-a044-8371740632e4-00-2ww7kmz3kth8q.worf.replit.dev/api/surveys 400 (Bad Request)

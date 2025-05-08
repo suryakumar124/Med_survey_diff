@@ -85,20 +85,22 @@ export function Sidebar({ className }: SidebarProps) {
             const Icon = item.icon;
             
             return (
-              <Link key={item.href} href={item.href}>
-                <a
-                  className={cn(
-                    "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                    isActive 
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground" 
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/10"
-                  )}
-                  onClick={() => setIsMobileOpen(false)}
-                >
-                  <Icon className={cn("mr-3 h-5 w-5", isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/60")} />
-                  {item.label}
-                </a>
-              </Link>
+              <div key={item.href}>
+                <Link href={item.href}>
+                  <div
+                    className={cn(
+                      "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer",
+                      isActive 
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground" 
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/10"
+                    )}
+                    onClick={() => setIsMobileOpen(false)}
+                  >
+                    <Icon className={cn("mr-3 h-5 w-5", isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/60")} />
+                    {item.label}
+                  </div>
+                </Link>
+              </div>
             );
           })}
         </nav>

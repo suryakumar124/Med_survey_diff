@@ -14,6 +14,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useClient } from "@/hooks/use-client";
 
 // Create survey schema
 const createSurveySchema = z.object({
@@ -28,6 +29,7 @@ type CreateSurveyData = z.infer<typeof createSurveySchema>;
 
 export default function ClientSurveys() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { client, isLoading: clientLoading } = useClient();
 
   // Create survey form
   const form = useForm<CreateSurveyData>({
@@ -66,7 +68,18 @@ export default function ClientSurveys() {
   });
 
   const onSubmit = (data: CreateSurveyData) => {
-    createSurveyMutation.mutate(data);
+    if (client) {
+      createSurveyMutation.mutate({
+        ...data,
+        clientId: client.id
+      });
+    } else {
+      toast({
+        title: "Error", 
+        description: "Client information not available. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
