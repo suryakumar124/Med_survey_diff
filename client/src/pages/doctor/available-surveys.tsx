@@ -16,18 +16,26 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
+// Extended survey type with analytics data from API
+interface ExtendedSurvey extends Survey {
+  responseCount?: number;
+  completedCount?: number;
+  completionRate?: number;
+}
+
 export default function DoctorAvailableSurveys() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
   // Fetch available surveys
-  const { data: surveys, isLoading } = useQuery<Survey[]>({
+  const { data: surveys, isLoading } = useQuery<ExtendedSurvey[]>({
     queryKey: ["/api/surveys"],
   });
 
-  // Filter active surveys that haven't been completed
+  // Filter surveys that haven't been completed (including both active and draft)
   const availableSurveys = surveys?.filter(survey => 
-    survey.status === "active" && (!survey.completedCount || survey.completedCount === 0)
+    (survey.status === "active" || survey.status === "draft") && 
+    (!survey.completedCount || survey.completedCount === 0)
   ) || [];
 
   // Filter by search term
@@ -36,12 +44,18 @@ export default function DoctorAvailableSurveys() {
     (survey.description && survey.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // Helper function to safely get date 
+  const getDateValue = (dateValue: Date | string | null): number => {
+    if (!dateValue) return 0;
+    return new Date(dateValue).getTime();
+  };
+
   // Sort surveys
   const sortedSurveys = [...filteredSurveys].sort((a, b) => {
     if (sortBy === "newest") {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return getDateValue(b.createdAt) - getDateValue(a.createdAt);
     } else if (sortBy === "oldest") {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return getDateValue(a.createdAt) - getDateValue(b.createdAt);
     } else if (sortBy === "points-high") {
       return b.points - a.points;
     } else if (sortBy === "points-low") {
@@ -122,9 +136,15 @@ export default function DoctorAvailableSurveys() {
                               <Clock className="h-4 w-4 mr-1 text-gray-500" />
                               <span>~{survey.estimatedTime} min</span>
                             </div>
-                            <Badge variant="outline" className="text-green-600">
-                              Available
-                            </Badge>
+                            {survey.status === "active" ? (
+                              <Badge variant="outline" className="text-green-600">
+                                Available
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-amber-600">
+                                Draft
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
