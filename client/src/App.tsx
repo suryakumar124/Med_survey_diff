@@ -25,6 +25,7 @@ import RepOnboarding from "@/pages/rep/onboarding";
 // Doctor Pages
 import DoctorDashboard from "@/pages/doctor/dashboard";
 import DoctorAvailableSurveys from "@/pages/doctor/available-surveys";
+import DoctorSurveyDetails from "@/pages/doctor/survey-details";
 import DoctorCompletedSurveys from "@/pages/doctor/completed-surveys";
 import DoctorPoints from "@/pages/doctor/points";
 import DoctorProfile from "@/pages/doctor/profile";
@@ -51,6 +52,7 @@ function Router() {
       {/* Doctor Routes */}
       <ProtectedRoute path="/doctor/dashboard" component={DoctorDashboard} />
       <ProtectedRoute path="/doctor/available-surveys" component={DoctorAvailableSurveys} />
+      <ProtectedRoute path="/doctor/available-surveys/:id" component={DoctorSurveyDetails} />
       <ProtectedRoute path="/doctor/completed-surveys" component={DoctorCompletedSurveys} />
       <ProtectedRoute path="/doctor/points" component={DoctorPoints} />
       <ProtectedRoute path="/doctor/profile" component={DoctorProfile} />
