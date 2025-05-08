@@ -98,6 +98,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Doctor Routes
+  app.get("/api/doctors/current", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const doctor = await storage.getDoctorByUserId(req.user!.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      res.json(doctor);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch doctor information" });
+    }
+  });
+
   app.get("/api/doctors", isAuthenticated, async (req, res) => {
     try {
       let doctors = [];
@@ -478,6 +491,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Update doctor's total points
+      const updatedTotalPoints = doctor.totalPoints + survey.points;
+      await storage.updateDoctor(doctor.id, {
+        totalPoints: updatedTotalPoints
+      });
+      
       // Save question responses
       if (req.body.responses && Array.isArray(req.body.responses)) {
         for (const questionResponse of req.body.responses) {
@@ -488,11 +507,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
-      // Update doctor's points
-      await storage.updateDoctor(doctor.id, {
-        totalPoints: doctor.totalPoints + survey.points
-      });
       
       res.status(201).json(response);
     } catch (error) {

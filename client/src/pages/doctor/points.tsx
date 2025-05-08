@@ -37,10 +37,16 @@ export default function DoctorPoints() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>("overview");
 
+  // Get the doctor ID from the user's role
+  const { data: doctorInfo } = useQuery<{ id: number }>({
+    queryKey: ["/api/doctors/current"],
+    enabled: !!user && user.role === "doctor",
+  });
+
   // Fetch points information
   const { data: pointsInfo, isLoading } = useQuery<PointsInfo>({
-    queryKey: ["/api/doctors", user?.roleDetails?.id, "points"],
-    enabled: !!user?.roleDetails?.id,
+    queryKey: ["/api/doctors", doctorInfo?.id, "points"],
+    enabled: !!doctorInfo?.id,
   });
 
   // Redemption form
