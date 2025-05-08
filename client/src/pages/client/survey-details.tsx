@@ -102,7 +102,8 @@ export default function SurveyDetails() {
   };
   
   // Format date
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return "N/A";
     return format(new Date(dateString), "MMM d, yyyy");
   };
   

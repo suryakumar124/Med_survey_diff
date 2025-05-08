@@ -334,23 +334,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Get survey questions
-      const questions = await storage.getSurveyQuestionsBySurveyId(surveyId);
-      
       // Get response stats
       const responses = await storage.getDoctorSurveyResponsesBySurveyId(surveyId);
       const completedResponses = responses.filter(r => r.completed);
       
-      // Return survey with questions and stats
+      // Return survey with stats (not including questions anymore)
       res.json({
         ...survey,
-        questions,
         responseCount: responses.length,
         completedCount: completedResponses.length,
         completionRate: responses.length > 0 ? (completedResponses.length / responses.length) * 100 : 0
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch survey" });
+    }
+  });
+  
+  // Dedicated endpoint for survey questions
+  app.get("/api/surveys/:id/questions", isAuthenticated, async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      
+      // Check if survey exists
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      
+      // Check permissions
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      } else if (req.user.role === "doctor") {
+        const doctor = await storage.getDoctorByUserId(req.user.id);
+        if (!doctor) {
+          return res.status(403).json({ message: "Forbidden: Doctor not found" });
+        }
+        
+        // Check if doctor has access to this survey
+        const doctorSurveys = await storage.getSurveysForDoctor(doctor.id);
+        if (!doctorSurveys.some(s => s.id === surveyId)) {
+          return res.status(403).json({ message: "Forbidden: Survey not available" });
+        }
+      } else if (req.user.role === "rep") {
+        const rep = await storage.getRepresentativeByUserId(req.user.id);
+        if (!rep || rep.clientId !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your client's survey" });
+        }
+      }
+      
+      // Get survey questions
+      const questions = await storage.getSurveyQuestionsBySurveyId(surveyId);
+      
+      // Return questions
+      res.json(questions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch survey questions" });
+    }
+  });
+  
+  // Endpoint to create a new survey question
+  app.post("/api/surveys/:id/questions", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      
+      // Check if survey exists
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      
+      // Check permissions for client users
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+      
+      // Validate question data
+      let questionData;
+      try {
+        questionData = insertSurveyQuestionSchema.parse({
+          ...req.body,
+          surveyId
+        });
+      } catch (error) {
+        if (error instanceof ZodError) {
+          const validationError = fromZodError(error);
+          return res.status(400).json({ message: validationError.message });
+        }
+        throw error;
+      }
+      
+      // Create the question
+      const question = await storage.createSurveyQuestion(questionData);
+      
+      res.status(201).json(question);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create survey question" });
     }
   });
 
