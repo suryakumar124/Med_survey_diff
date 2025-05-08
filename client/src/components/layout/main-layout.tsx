@@ -1,15 +1,18 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Search, Bell } from "lucide-react";
+import { Search, Bell, ChevronLeft } from "lucide-react";
 import { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Link } from "wouter";
 
 interface MainLayoutProps {
   children: ReactNode;
   className?: string;
   pageTitle?: string;
   pageDescription?: string;
+  backLink?: string;
+  backLinkLabel?: string;
 }
 
 export function MainLayout({ 
@@ -17,6 +20,8 @@ export function MainLayout({
   className,
   pageTitle = "Dashboard",
   pageDescription,
+  backLink,
+  backLinkLabel = "Back",
 }: MainLayoutProps) {
   const { user } = useAuth();
 
@@ -58,6 +63,17 @@ export function MainLayout({
         <main className="flex-1 overflow-y-auto bg-gray-100 focus:outline-none">
           <div className="py-6">
             <div className="px-4 mx-auto sm:px-6 md:px-8">
+              {backLink && (
+                <div className="mb-4">
+                  <Link href={backLink}>
+                    <div className="inline-flex items-center text-sm font-medium text-primary hover:text-primary-dark cursor-pointer">
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      {backLinkLabel}
+                    </div>
+                  </Link>
+                </div>
+              )}
+              
               {pageTitle && (
                 <div className="mb-6">
                   <h1 className="text-2xl font-semibold text-gray-900">{pageTitle}</h1>
