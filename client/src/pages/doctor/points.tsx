@@ -68,7 +68,7 @@ export default function DoctorPoints() {
     mutationFn: async (data: RedemptionFormData) => {
       const res = await apiRequest(
         "POST", 
-        `/api/doctors/${user?.roleDetails?.id}/redeem`, 
+        `/api/doctors/${doctorInfo?.id}/redeem`, 
         data
       );
       return await res.json();
@@ -79,7 +79,7 @@ export default function DoctorPoints() {
         description: "Your points have been successfully redeemed.",
       });
       form.reset();
-      queryClient.invalidateQueries({ queryKey: ["/api/doctors", user?.roleDetails?.id, "points"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctors", doctorInfo?.id, "points"] });
       setActiveTab("history");
     },
     onError: (error: Error) => {
@@ -107,7 +107,8 @@ export default function DoctorPoints() {
     redeemMutation.mutate(data);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return "Unknown date";
     try {
       return format(new Date(dateString), 'MMM d, yyyy');
     } catch (e) {
