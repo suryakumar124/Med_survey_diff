@@ -23,7 +23,8 @@ import { format } from "date-fns";
 // Create question schema
 const createQuestionSchema = z.object({
   questionText: z.string().min(1, { message: "Question text is required" }),
-  questionType: z.enum(["text", "scale", "mcq", "ranking"], { message: "Question type is required" }),
+  questionType: z.enum(["text", "scale", "mcq"], { message: "Question type is required" }),
+  // "ranking" type removed temporarily
   options: z.string().optional(),
   required: z.boolean().default(false),
 });
@@ -205,9 +206,10 @@ export default function SurveyDetails() {
         </Card>
         
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
           
           <TabsContent value="details" className="space-y-4">
@@ -290,7 +292,9 @@ export default function SurveyDetails() {
                                 <SelectItem value="text">Text</SelectItem>
                                 <SelectItem value="scale">Scale</SelectItem>
                                 <SelectItem value="mcq">Multiple Choice</SelectItem>
-                                <SelectItem value="ranking">Ranking</SelectItem>
+                                {/* Ranking temporarily removed
+                                <SelectItem value="ranking">Ranking</SelectItem> 
+                                */}
                               </SelectContent>
                             </Select>
                             <FormDescription>
@@ -301,7 +305,7 @@ export default function SurveyDetails() {
                         )}
                       />
                       
-                      {(form.watch("questionType") === "mcq" || form.watch("questionType") === "ranking") && (
+                      {(form.watch("questionType") === "mcq") && (
                         <FormField
                           control={form.control}
                           name="options"
@@ -411,7 +415,7 @@ export default function SurveyDetails() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {question.questionType === "mcq" || question.questionType === "ranking" ? (
+                      {question.questionType === "mcq" ? (
                         <div className="space-y-2">
                           <p className="text-sm font-medium">Options:</p>
                           <ul className="list-disc list-inside">
