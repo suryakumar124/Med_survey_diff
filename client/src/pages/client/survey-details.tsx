@@ -17,7 +17,8 @@ import { z } from "zod";
 import { Survey, SurveyQuestion } from "@shared/schema";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Plus, Clock, Award, FileText } from "lucide-react";
+import { Loader2, Plus, Clock, Award, FileText, BarChart2, Users, PieChart } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 
 // Create question schema
@@ -57,6 +58,17 @@ export default function SurveyDetails() {
       return res.json();
     },
     enabled: !!surveyId && !isNaN(surveyId),
+  });
+  
+  // Fetch survey responses for analytics
+  const { data: responses = [], isLoading: responsesLoading } = useQuery({
+    queryKey: ["/api/surveys", surveyId, "responses"],
+    queryFn: async () => {
+      const res = await fetch(`/api/surveys/${surveyId}/responses`);
+      if (!res.ok) throw new Error("Failed to fetch responses");
+      return res.json();
+    },
+    enabled: !!surveyId && !isNaN(surveyId) && activeTab === "analytics",
   });
   
   // Create question form
@@ -432,6 +444,118 @@ export default function SurveyDetails() {
                     </CardFooter>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="analytics" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">Survey Analytics</h2>
+            </div>
+            
+            {responsesLoading ? (
+              <div className="flex items-center justify-center h-40">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Overview card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Response Overview</CardTitle>
+                    <CardDescription>Summary of survey responses</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <Users className="h-10 w-10 text-primary p-2 bg-primary/10 rounded-full" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Total Responses</p>
+                        <p className="text-2xl font-bold">{responses.length}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <PieChart className="h-10 w-10 text-green-600 p-2 bg-green-100 rounded-full" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Completion Rate</p>
+                        <p className="text-2xl font-bold">
+                          {responses.length ? Math.round((responses.filter(r => r.completed).length / responses.length) * 100) : 0}%
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Question stats card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Question Performance</CardTitle>
+                    <CardDescription>
+                      Questions with highest and lowest response rates
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {questions.length === 0 ? (
+                      <div className="text-center py-6 text-gray-500">
+                        No questions available to analyze.
+                      </div>
+                    ) : responses.length === 0 ? (
+                      <div className="text-center py-6 text-gray-500">
+                        No responses received yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm font-medium">Response Distribution</p>
+                        <Progress value={responses.length ? (responses.filter(r => r.completed).length / responses.length) * 100 : 0} className="h-2 w-full" />
+                        <p className="text-xs text-gray-500 text-right">
+                          {responses.filter(r => r.completed).length} completed out of {responses.length} total responses
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Response details */}
+                {responses.length > 0 && questions.filter(q => q.questionType === "mcq").map(question => {
+                  // Get all responses for this question
+                  const questionResponses = responses.flatMap(response => 
+                    response.questionResponses?.filter(qr => qr.questionId === question.id) || []
+                  );
+                  
+                  // Calculate option statistics for MCQ questions
+                  if (question.questionType === "mcq" && question.options) {
+                    const options = question.options.split("\n");
+                    const optionCounts = options.map(option => {
+                      const count = questionResponses.filter(qr => qr.response === option).length;
+                      const percentage = questionResponses.length > 0
+                        ? Math.round((count / questionResponses.length) * 100)
+                        : 0;
+                      return { option, count, percentage };
+                    });
+                    
+                    return (
+                      <Card key={question.id} className="col-span-1 md:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="text-lg">{question.questionText}</CardTitle>
+                          <CardDescription>Response distribution</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-6">
+                            {optionCounts.map((option, index) => (
+                              <div key={index} className="space-y-2">
+                                <div className="flex justify-between">
+                                  <p className="text-sm font-medium">{option.option}</p>
+                                  <p className="text-sm text-gray-500">{option.count} ({option.percentage}%)</p>
+                                </div>
+                                <Progress value={option.percentage} className="h-2 w-full" />
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  return null;
+                })}
               </div>
             )}
           </TabsContent>
