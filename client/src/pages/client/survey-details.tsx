@@ -478,7 +478,7 @@ export default function SurveyDetails() {
                       <div>
                         <p className="text-sm font-medium text-gray-500">Completion Rate</p>
                         <p className="text-2xl font-bold">
-                          {responses.length ? Math.round((responses.filter(r => r.completed).length / responses.length) * 100) : 0}%
+                          {responses.length ? Math.round((responses.filter(r => r.completed).length / responses.length) * 100).toString() : "0"}%
                         </p>
                       </div>
                     </div>
@@ -505,9 +505,12 @@ export default function SurveyDetails() {
                     ) : (
                       <div className="space-y-4">
                         <p className="text-sm font-medium">Response Distribution</p>
-                        <Progress value={responses.length ? (responses.filter(r => r.completed).length / responses.length) * 100 : 0} className="h-2 w-full" />
+                        <Progress 
+                          value={responses.length ? (responses.filter(r => r.completed).length / responses.length) * 100 : 0} 
+                          className="h-2 w-full" 
+                        />
                         <p className="text-xs text-gray-500 text-right">
-                          {responses.filter(r => r.completed).length} completed out of {responses.length} total responses
+                          {responses.filter(r => r.completed).length.toString()} completed out of {responses.length.toString()} total responses
                         </p>
                       </div>
                     )}
@@ -515,7 +518,7 @@ export default function SurveyDetails() {
                 </Card>
                 
                 {/* Response details */}
-                {responses.length > 0 && questions.filter(q => q.questionType === "mcq").map(question => {
+                {responses.length > 0 && questions.map(question => {
                   // Get all responses for this question
                   const questionResponses = responses.flatMap(response => 
                     response.questionResponses?.filter(qr => qr.questionId === question.id) || []
@@ -536,7 +539,7 @@ export default function SurveyDetails() {
                       <Card key={question.id} className="col-span-1 md:col-span-2">
                         <CardHeader>
                           <CardTitle className="text-lg">{question.questionText}</CardTitle>
-                          <CardDescription>Response distribution</CardDescription>
+                          <CardDescription>Multiple choice response distribution</CardDescription>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-6">
@@ -544,7 +547,7 @@ export default function SurveyDetails() {
                               <div key={index} className="space-y-2">
                                 <div className="flex justify-between">
                                   <p className="text-sm font-medium">{option.option}</p>
-                                  <p className="text-sm text-gray-500">{option.count} ({option.percentage}%)</p>
+                                  <p className="text-sm text-gray-500">{option.count.toString()} ({option.percentage.toString()}%)</p>
                                 </div>
                                 <Progress value={option.percentage} className="h-2 w-full" />
                               </div>
@@ -554,6 +557,88 @@ export default function SurveyDetails() {
                       </Card>
                     );
                   }
+                  
+                  // For scale questions, show distribution across the scale
+                  else if (question.questionType === "scale" && questionResponses.length > 0) {
+                    // Count responses for each scale value (1-10)
+                    const scaleCounts = Array(10).fill(0);
+                    let totalResponses = 0;
+                    let sum = 0;
+                    
+                    questionResponses.forEach(qr => {
+                      if (qr.response) {
+                        const value = parseInt(qr.response);
+                        if (!isNaN(value) && value >= 1 && value <= 10) {
+                          scaleCounts[value - 1]++;
+                          sum += value;
+                          totalResponses++;
+                        }
+                      }
+                    });
+                    
+                    // Calculate average score
+                    const average = totalResponses > 0 ? (sum / totalResponses).toFixed(1) : "N/A";
+                    
+                    // Calculate percentages for visualization
+                    const scaleData = scaleCounts.map((count, index) => {
+                      const percentage = totalResponses > 0 
+                        ? Math.round((count / totalResponses) * 100) 
+                        : 0;
+                      return { value: index + 1, count, percentage };
+                    });
+                    
+                    return (
+                      <Card key={question.id} className="col-span-1 md:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="text-lg">{question.questionText}</CardTitle>
+                          <CardDescription>Scale response distribution (Average: {average})</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-6">
+                            {scaleData.map((item) => (
+                              <div key={item.value} className="space-y-2">
+                                <div className="flex justify-between">
+                                  <p className="text-sm font-medium">Scale {item.value.toString()}</p>
+                                  <p className="text-sm text-gray-500">{item.count.toString()} ({item.percentage.toString()}%)</p>
+                                </div>
+                                <Progress value={item.percentage} className="h-2 w-full" />
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
+                  // For text questions, show a list of responses
+                  else if (question.questionType === "text" && questionResponses.length > 0) {
+                    const textResponses = questionResponses
+                      .filter(qr => qr.response && qr.response.trim() !== '')
+                      .map(qr => qr.response);
+                    
+                    return (
+                      <Card key={question.id} className="col-span-1 md:col-span-2">
+                        <CardHeader>
+                          <CardTitle className="text-lg">{question.questionText}</CardTitle>
+                          <CardDescription>Text responses ({textResponses.length.toString()} total)</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {textResponses.length === 0 ? (
+                            <p className="text-gray-500">No text responses received yet.</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {textResponses.map((response, index) => (
+                                <div key={index} className="p-3 bg-gray-50 rounded-md">
+                                  <p className="text-sm">"{response}"</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  }
+                  
                   return null;
                 })}
               </div>
