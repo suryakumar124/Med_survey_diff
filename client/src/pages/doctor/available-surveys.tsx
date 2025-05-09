@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Survey } from "@shared/schema";
-import { Loader2, Search, FileText, Clock, Award, Filter } from "lucide-react";
+import { Loader2, Search, Filter } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
+import { SurveyCard } from "@/components/survey/survey-card";
 import { useState } from "react";
 import {
   Select,
@@ -28,8 +29,18 @@ export default function DoctorAvailableSurveys() {
   const [sortBy, setSortBy] = useState("newest");
 
   // Fetch available surveys
-  const { data: surveys, isLoading } = useQuery<ExtendedSurvey[]>({
+  const { data: surveys, isLoading: surveysLoading } = useQuery<ExtendedSurvey[]>({
     queryKey: ["/api/surveys"],
+  });
+  
+  // Fetch doctor's responses to determine partial responses
+  const { data: responses, isLoading: responsesLoading } = useQuery({
+    queryKey: ["/api/doctors/current/responses"],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/current/responses`);
+      if (!res.ok) throw new Error("Failed to fetch responses");
+      return res.json();
+    },
   });
 
   // Filter surveys that haven't been completed (including both active and draft)
@@ -68,6 +79,16 @@ export default function DoctorAvailableSurveys() {
     return 0;
   });
 
+  // Check if a survey has a partial response
+  const hasPartialResponse = (surveyId: number) => {
+    if (!responses) return false;
+    return responses.some((response: any) => 
+      response.surveyId === surveyId && !response.completed
+    );
+  };
+  
+  const isLoading = surveysLoading || responsesLoading;
+  
   return (
     <MainLayout pageTitle="Available Surveys" pageDescription="Surveys available for you to complete">
       {isLoading ? (
@@ -115,49 +136,12 @@ export default function DoctorAvailableSurveys() {
           {sortedSurveys.length > 0 ? (
             <div className="grid grid-cols-1 gap-6">
               {sortedSurveys.map((survey) => (
-                <Card key={survey.id} className="hover:shadow-md transition-shadow duration-200">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="p-3 bg-primary-100 rounded-full">
-                          <FileText className="h-6 w-6 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-medium">{survey.title}</h3>
-                          <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-                            {survey.description || "No description provided."}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3 mt-3">
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Award className="h-4 w-4 mr-1 text-amber-500" />
-                              <span>{survey.points} points</span>
-                            </div>
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Clock className="h-4 w-4 mr-1 text-gray-500" />
-                              <span>~{survey.estimatedTime} min</span>
-                            </div>
-                            {survey.status === "active" ? (
-                              <Badge variant="outline" className="text-green-600">
-                                Available
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-amber-600">
-                                Draft
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4 md:mt-0 md:ml-4">
-                        <Link href={`/doctor/available-surveys/${survey.id}`}>
-                          <Button>
-                            Take Survey
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <SurveyCard 
+                  key={survey.id}
+                  survey={survey}
+                  userRole="doctor"
+                  partialResponse={hasPartialResponse(survey.id)}
+                />
               ))}
             </div>
           ) : (

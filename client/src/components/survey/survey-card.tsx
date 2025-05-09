@@ -2,15 +2,16 @@ import { Survey } from "@shared/schema";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, Award, Users, ArrowRight } from "lucide-react";
+import { FileText, Clock, Award, Users, ArrowRight, Bookmark } from "lucide-react";
 import { Link } from "wouter";
 
 interface SurveyCardProps {
   survey: Survey;
   userRole: string;
+  partialResponse?: boolean;
 }
 
-export function SurveyCard({ survey, userRole }: SurveyCardProps) {
+export function SurveyCard({ survey, userRole, partialResponse = false }: SurveyCardProps) {
   // Status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -55,7 +56,15 @@ export function SurveyCard({ survey, userRole }: SurveyCardProps) {
             <FileText className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">{survey.title}</h3>
+            <div className="flex items-center">
+              <h3 className="text-lg font-medium text-gray-900 mb-1">{survey.title}</h3>
+              {partialResponse && (
+                <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">
+                  <Bookmark className="h-3 w-3 mr-1" />
+                  In Progress
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               {getStatusBadge(survey.status)}
               <span>•</span>
@@ -89,8 +98,16 @@ export function SurveyCard({ survey, userRole }: SurveyCardProps) {
           
           <div className="mt-2 sm:mt-0">
             <Link href={getSurveyLink()}>
-              <Button variant="outline" className="space-x-2">
-                <span>{userRole === "doctor" ? "Take Survey" : "View Details"}</span>
+              <Button 
+                variant={partialResponse ? "default" : "outline"} 
+                className="space-x-2"
+              >
+                <span>
+                  {userRole === "doctor" 
+                    ? partialResponse ? "Resume Survey" : "Take Survey" 
+                    : "View Details"
+                  }
+                </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
