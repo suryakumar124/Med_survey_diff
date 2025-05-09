@@ -470,7 +470,7 @@ export default function SurveyDetails() {
                       <Users className="h-10 w-10 text-primary p-2 bg-primary/10 rounded-full" />
                       <div>
                         <p className="text-sm font-medium text-gray-500">Total Responses</p>
-                        <p className="text-2xl font-bold">{responses.length}</p>
+                        <p className="text-2xl font-bold">{responses.length.toString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">

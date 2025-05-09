@@ -17,6 +17,7 @@ export default function DoctorSurveyDetails() {
   const { id } = useParams();
   const surveyId = parseInt(id as string);
   const [activeTab, setActiveTab] = useState("details");
+  const [questionResponses, setQuestionResponses] = useState<{[key: number]: any}>({});
   const { user } = useAuth();
   
   // Fetch survey details
@@ -97,17 +98,65 @@ export default function DoctorSurveyDetails() {
   };
 
   const handleTakeSurvey = () => {
-    // For now, implement a simple version that just submits empty responses
-    // In a real implementation, you would collect actual responses from form inputs
-    const mockResponses = questions.map(question => ({
-      questionId: question.id,
-      data: question.questionType === "text" ? "Sample response" : 
-            question.questionType === "mcq" ? "Option 1" : 
-            question.questionType === "scale" ? 5 : 
-            "Sample ranking response"
-    }));
+    // Collect responses only if we're in the questions tab
+    if (activeTab !== "questions") {
+      // Switch to questions tab if user clicked "Take Survey Now" from details tab
+      setActiveTab("questions");
+      return;
+    }
     
-    takeSurveyMutation.mutate(mockResponses);
+    // Validate and collect responses
+    const requiredQuestions = questions.filter(q => q.required);
+    const missingRequired = requiredQuestions.filter(q => !questionResponses[q.id]);
+    
+    if (missingRequired.length > 0) {
+      toast({
+        title: "Missing required answers",
+        description: `Please answer all required questions before submitting.`,
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Format responses for API
+    const responses = questions.map(question => ({
+      questionId: question.id,
+      response: questionResponses[question.id] || null
+    })).filter(r => r.response !== null);
+    
+    // Don't submit if no responses
+    if (responses.length === 0) {
+      toast({
+        title: "No answers provided",
+        description: "Please answer at least one question before submitting.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    takeSurveyMutation.mutate(responses);
+  };
+  
+  // Handle response changes for different question types
+  const handleTextResponse = (questionId: number, value: string) => {
+    setQuestionResponses(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+  
+  const handleMcqResponse = (questionId: number, option: string) => {
+    setQuestionResponses(prev => ({
+      ...prev,
+      [questionId]: option
+    }));
+  };
+  
+  const handleScaleResponse = (questionId: number, value: number) => {
+    setQuestionResponses(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
   };
   
   if (surveyLoading) {
@@ -290,11 +339,23 @@ export default function DoctorSurveyDetails() {
                       {question.questionType === "mcq" || question.questionType === "ranking" ? (
                         <div className="space-y-2">
                           <p className="text-sm font-medium">Options:</p>
-                          <ul className="list-disc list-inside">
+                          <div className="space-y-2 mt-3">
                             {question.options?.split("\n").map((option, i) => (
-                              <li key={i} className="text-sm">{option}</li>
+                              <div key={i} className="flex items-center space-x-2">
+                                <input
+                                  type="radio"
+                                  id={`option-${question.id}-${i}`}
+                                  name={`question-${question.id}`}
+                                  checked={questionResponses[question.id] === option}
+                                  onChange={() => handleMcqResponse(question.id, option)}
+                                  className="h-4 w-4 text-primary focus:ring-primary"
+                                />
+                                <label htmlFor={`option-${question.id}-${i}`} className="text-sm">
+                                  {option}
+                                </label>
+                              </div>
                             ))}
-                          </ul>
+                          </div>
                         </div>
                       ) : question.questionType === "text" ? (
                         <div className="mt-2">
@@ -302,6 +363,8 @@ export default function DoctorSurveyDetails() {
                             className="w-full p-2 border border-gray-300 rounded-md"
                             placeholder="Enter your answer here"
                             rows={3}
+                            value={questionResponses[question.id] || ''}
+                            onChange={(e) => handleTextResponse(question.id, e.target.value)}
                           />
                         </div>
                       ) : question.questionType === "scale" ? (
@@ -309,7 +372,13 @@ export default function DoctorSurveyDetails() {
                           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
                             <button
                               key={num}
-                              className="w-8 h-8 rounded-full border border-gray-300 hover:bg-primary hover:text-white hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                              type="button"
+                              onClick={() => handleScaleResponse(question.id, num)}
+                              className={`w-8 h-8 rounded-full border
+                                ${questionResponses[question.id] === num 
+                                  ? 'bg-primary text-white border-primary' 
+                                  : 'border-gray-300 hover:bg-primary/10 hover:text-primary'}
+                                focus:outline-none focus:ring-2 focus:ring-primary`}
                             >
                               {num}
                             </button>
