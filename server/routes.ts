@@ -892,6 +892,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to assign doctor" });
     }
   });
+  
+  // Get current doctor's survey responses (complete and partial)
+  app.get("/api/doctors/current/responses", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      
+      // Enhance responses with question responses
+      const enhancedResponses = await Promise.all(responses.map(async (response) => {
+        const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
+        return {
+          ...response,
+          questionResponses
+        };
+      }));
+      
+      res.json(enhancedResponses);
+    } catch (error) {
+      console.error("Error getting doctor responses:", error);
+      res.status(500).json({ message: "Failed to fetch doctor responses" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
