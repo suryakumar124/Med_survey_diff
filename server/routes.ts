@@ -596,6 +596,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get doctor's survey responses with associated survey and question response data
+  app.get("/api/doctors/:id/responses", isAuthenticated, async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      const doctor = await storage.getDoctor(doctorId);
+      
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      // Check permissions - only the doctor themselves or clients/admins can view responses
+      if (req.user.role === "doctor" && req.user.id !== doctor.userId) {
+        return res.status(403).json({ message: "Forbidden: Not your responses" });
+      }
+      
+      // Get all responses for this doctor
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctorId);
+      
+      // Enrich with survey info and question responses
+      const enrichedResponses = await Promise.all(
+        responses.map(async (response) => {
+          // Get the survey
+          const survey = await storage.getSurvey(response.surveyId);
+          
+          // Get question responses
+          const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
+          
+          // Enrich question responses with question text
+          const enrichedQuestionResponses = await Promise.all(
+            questionResponses.map(async (qr) => {
+              const question = await storage.getSurveyQuestion(qr.questionId);
+              return {
+                ...qr,
+                question: question ? {
+                  questionText: question.questionText,
+                  questionType: question.questionType,
+                  options: question.options
+                } : undefined
+              };
+            })
+          );
+          
+          return {
+            ...response,
+            survey,
+            questionResponses: enrichedQuestionResponses
+          };
+        })
+      );
+      
+      res.json(enrichedResponses);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch doctor survey responses" });
+    }
+  });
+
   app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
     try {
       const doctorId = parseInt(req.params.id);
