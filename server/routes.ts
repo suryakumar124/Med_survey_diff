@@ -896,19 +896,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current doctor's survey responses (complete and partial)
   app.get("/api/doctors/current/responses", hasRole(["doctor"]), async (req, res) => {
     try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      
       const doctor = await storage.getDoctorByUserId(req.user.id);
       if (!doctor) {
         return res.status(404).json({ message: "Doctor not found" });
       }
       
       const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      if (!responses) {
+        return res.json([]);
+      }
       
       // Enhance responses with question responses
       const enhancedResponses = await Promise.all(responses.map(async (response) => {
         const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
+        
+        // Get survey details
+        const survey = await storage.getSurvey(response.surveyId);
+        
         return {
           ...response,
-          questionResponses
+          survey: survey || undefined,
+          questionResponses: questionResponses || []
         };
       }));
       
