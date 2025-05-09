@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Award, Clock, FileText } from "lucide-react";
 
 // Extended survey type with analytics data from API
 interface ExtendedSurvey extends Survey {

@@ -5,8 +5,15 @@ import { Button } from "@/components/ui/button";
 import { FileText, Clock, Award, Users, ArrowRight, Bookmark } from "lucide-react";
 import { Link } from "wouter";
 
+// Extended survey type with analytics data
+interface ExtendedSurvey extends Survey {
+  responseCount?: number;
+  completedCount?: number;
+  completionRate?: number;
+}
+
 interface SurveyCardProps {
-  survey: Survey;
+  survey: Survey | ExtendedSurvey;
   userRole: string;
   partialResponse?: boolean;
 }
@@ -89,7 +96,7 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
         <div className="flex flex-wrap justify-between items-center">
           <div className="flex items-center text-sm text-gray-600">
             <Users className="h-4 w-4 mr-1" />
-            {survey.responseCount !== undefined ? (
+            {('responseCount' in survey && survey.responseCount !== undefined) ? (
               <span>{survey.responseCount} responses</span>
             ) : (
               <span>0 responses</span>
