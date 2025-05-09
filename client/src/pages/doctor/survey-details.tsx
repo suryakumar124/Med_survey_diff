@@ -18,6 +18,8 @@ export default function DoctorSurveyDetails() {
   const surveyId = parseInt(id as string);
   const [activeTab, setActiveTab] = useState("details");
   const [questionResponses, setQuestionResponses] = useState<{[key: number]: any}>({});
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { user } = useAuth();
   
   // Fetch survey details
@@ -40,6 +42,34 @@ export default function DoctorSurveyDetails() {
       return res.json();
     },
     enabled: !!surveyId && !isNaN(surveyId),
+  });
+  
+  // Fetch existing doctor responses (partial and complete)
+  const { data: existingResponses, isLoading: responsesLoading } = useQuery({
+    queryKey: ["/api/doctors/current/responses"],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/current/responses`);
+      if (!res.ok) throw new Error("Failed to fetch existing responses");
+      return res.json();
+    },
+    enabled: !!surveyId && !isNaN(surveyId),
+  });
+  
+  // Auto-save mutation
+  const saveProgressMutation = useMutation({
+    mutationFn: async (responses: any[]) => {
+      const res = await apiRequest("POST", `/api/surveys/${surveyId}/partial-responses`, {
+        responses
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      setLastSaved(new Date());
+      setAutoSaving(false);
+    },
+    onError: () => {
+      setAutoSaving(false);
+    }
   });
   
   // Take survey mutation
@@ -158,6 +188,74 @@ export default function DoctorSurveyDetails() {
       [questionId]: value
     }));
   };
+  
+  // Auto-save responses when they change
+  useEffect(() => {
+    // Don't auto-save if no changes or no questions loaded yet
+    if (Object.keys(questionResponses).length === 0 || questions.length === 0) {
+      return;
+    }
+    
+    // Set a timer to auto-save after 2 seconds of inactivity
+    const timer = setTimeout(() => {
+      setAutoSaving(true);
+      
+      // Format responses for API
+      const responses = questions.map(question => ({
+        questionId: question.id,
+        response: questionResponses[question.id] || null
+      })).filter(r => r.response !== null);
+      
+      if (responses.length > 0) {
+        saveProgressMutation.mutate(responses);
+      } else {
+        setAutoSaving(false);
+      }
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [questionResponses, questions, saveProgressMutation]);
+  
+  // Load partial responses when the component mounts
+  useEffect(() => {
+    if (!existingResponses || responsesLoading) return;
+    
+    // Find existing response for this survey
+    const surveyResponse = existingResponses.find((response: any) => 
+      response.surveyId === surveyId && !response.completed
+    );
+    
+    if (surveyResponse) {
+      // Load existing question responses
+      const existingQuestionResponses: {[key: number]: any} = {};
+      
+      surveyResponse.questionResponses.forEach((qr: any) => {
+        if (qr.responseData) {
+          try {
+            // Try to parse JSON if it's stored as a string
+            const parsedResponse = typeof qr.responseData === 'string' 
+              ? JSON.parse(qr.responseData) 
+              : qr.responseData;
+            
+            existingQuestionResponses[qr.questionId] = parsedResponse;
+          } catch (e) {
+            // If parsing fails, use the raw response data
+            existingQuestionResponses[qr.questionId] = qr.responseData;
+          }
+        }
+      });
+      
+      if (Object.keys(existingQuestionResponses).length > 0) {
+        setQuestionResponses(existingQuestionResponses);
+        
+        // Show a toast notification if there are saved responses
+        toast({
+          title: "Saved responses loaded",
+          description: "Your previous progress has been restored.",
+        });
+      }
+    }
+  }, [existingResponses, responsesLoading, surveyId, toast]);
   
   if (surveyLoading) {
     return (

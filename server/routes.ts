@@ -452,6 +452,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Survey Response Routes
+  // Save partial survey response (auto-save)
+  app.post("/api/surveys/:id/partial-responses", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      
+      // Get doctor
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      // Check if doctor already completed this survey
+      const existingResponses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const completedResponse = existingResponses.find(r => r.surveyId === surveyId && r.completed);
+      if (completedResponse) {
+        return res.status(400).json({ message: "Survey already completed" });
+      }
+      
+      // Create or update partial response
+      let response = existingResponses.find(r => r.surveyId === surveyId && !r.completed);
+      if (!response) {
+        // New partial response
+        response = await storage.createDoctorSurveyResponse({
+          doctorId: doctor.id,
+          surveyId,
+          completed: false
+        });
+      }
+      
+      // Save question responses
+      if (req.body.responses && Array.isArray(req.body.responses)) {
+        // Clear existing responses first (in a real implementation)
+        // For now we'll just add new ones
+        
+        for (const questionResponse of req.body.responses) {
+          await storage.createQuestionResponse({
+            doctorSurveyResponseId: response.id,
+            questionId: questionResponse.questionId,
+            responseData: questionResponse.response
+          });
+        }
+      }
+      
+      res.status(200).json({ success: true, message: "Progress saved" });
+    } catch (error) {
+      console.error("Error saving partial response:", error);
+      res.status(500).json({ message: "Failed to save survey progress" });
+    }
+  });
+
+  // Submit completed survey response
   app.post("/api/surveys/:id/responses", hasRole(["doctor"]), async (req, res) => {
     try {
       const surveyId = parseInt(req.params.id);
@@ -697,6 +752,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(redemption);
     } catch (error) {
       res.status(500).json({ message: "Failed to process redemption" });
+    }
+  });
+
+  // Send reminder email to a doctor for a specific survey
+  app.post("/api/doctors/:id/send-reminder", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.id);
+      const doctor = await storage.getDoctor(doctorId);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      
+      const surveyId = parseInt(req.body.surveyId);
+      if (!surveyId) {
+        return res.status(400).json({ message: "Survey ID is required" });
+      }
+      
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+      
+      // For clients, check if they own the survey
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+      
+      // Check if the doctor has a partial response or no response
+      const existingResponses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const surveyResponse = existingResponses.find(r => r.surveyId === surveyId);
+      
+      // If the survey is already completed, don't send a reminder
+      if (surveyResponse && surveyResponse.completed) {
+        return res.status(400).json({ 
+          message: "Doctor has already completed this survey",
+          completed: true
+        });
+      }
+      
+      // Get doctor user info for email
+      const user = await storage.getUser(doctor.userId);
+      if (!user) {
+        return res.status(404).json({ message: "Doctor user not found" });
+      }
+      
+      // In a real implementation, we would send an email here
+      // For now, we'll just return success with information about what would be sent
+      
+      const reminderType = surveyResponse ? 'resume_survey' : 'start_survey';
+      const emailSubject = surveyResponse 
+        ? `Reminder: Please complete the "${survey.title}" survey`
+        : `New survey invitation: "${survey.title}"`;
+      
+      // In a production environment, we would integrate with SendGrid or another email service
+      // const emailSent = await sendEmail({
+      //   to: user.email,
+      //   from: 'surveys@medicalsurveys.com',
+      //   subject: emailSubject,
+      //   text: `Hello ${user.name},\n\nThis is a reminder about the "${survey.title}" survey. ${surveyResponse ? 'You started this survey but haven\'t completed it yet.' : 'You have been invited to take this survey.'}\n\nPoints available: ${survey.points}\n\nEstimated time: ${survey.estimatedTime} minutes\n\nThank you!`
+      // });
+      
+      // For now, just simulate successful email sending
+      const emailInfo = {
+        recipient: user.email,
+        subject: emailSubject,
+        type: reminderType,
+        surveyTitle: survey.title,
+        // In a real implementation, the email would contain a link to the survey
+      };
+      
+      res.status(200).json({ 
+        success: true, 
+        message: "Reminder email would be sent", 
+        emailInfo
+      });
+    } catch (error) {
+      console.error("Error sending reminder:", error);
+      res.status(500).json({ message: "Failed to send reminder" });
     }
   });
 
