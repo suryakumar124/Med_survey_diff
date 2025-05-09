@@ -73,7 +73,7 @@ export function Sidebar({ className }: SidebarProps) {
   }
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-black">
       <div className="flex items-center justify-center h-16 px-4 border-b border-sidebar-border bg-sidebar-background">
         <Logo className="text-sidebar-foreground" />
       </div>
