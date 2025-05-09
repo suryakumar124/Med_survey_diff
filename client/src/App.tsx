@@ -14,6 +14,7 @@ import ClientDashboard from "@/pages/client/dashboard";
 import ClientSurveys from "@/pages/client/surveys";
 import SurveyDetails from "@/pages/client/survey-details";
 import ClientDoctors from "@/pages/client/doctors";
+import DoctorDetails from "@/pages/client/doctor-details";
 import ClientRepresentatives from "@/pages/client/representatives";
 import ClientAnalytics from "@/pages/client/analytics";
 
@@ -41,6 +42,7 @@ function Router() {
       <ProtectedRoute path="/client/surveys" component={ClientSurveys} />
       <ProtectedRoute path="/client/surveys/:id" component={SurveyDetails} />
       <ProtectedRoute path="/client/doctors" component={ClientDoctors} />
+      <ProtectedRoute path="/client/doctors/:id" component={DoctorDetails} />
       <ProtectedRoute path="/client/representatives" component={ClientRepresentatives} />
       <ProtectedRoute path="/client/analytics" component={ClientAnalytics} />
 
