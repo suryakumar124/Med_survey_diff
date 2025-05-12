@@ -20,6 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2, Plus, Clock, Award, FileText, BarChart2, Users, PieChart } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
+import { SurveyBuilder } from "@/components/survey/survey-builder";
 
 // Create question schema
 const createQuestionSchema = z.object({
@@ -37,7 +38,7 @@ export default function SurveyDetails() {
   const surveyId = parseInt(id as string);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
-  
+
   // Fetch survey details
   const { data: survey, isLoading: surveyLoading } = useQuery<Survey>({
     queryKey: ["/api/surveys", surveyId],
@@ -48,7 +49,7 @@ export default function SurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId),
   });
-  
+
   // Fetch survey questions
   const { data: questions = [], isLoading: questionsLoading } = useQuery<SurveyQuestion[]>({
     queryKey: ["/api/surveys", surveyId, "questions"],
@@ -59,7 +60,7 @@ export default function SurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId),
   });
-  
+
   // Fetch survey responses for analytics
   const { data: responses = [], isLoading: responsesLoading } = useQuery({
     queryKey: ["/api/surveys", surveyId, "responses"],
@@ -70,7 +71,7 @@ export default function SurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId) && activeTab === "analytics",
   });
-  
+
   // Create question form
   const form = useForm<CreateQuestionData>({
     resolver: zodResolver(createQuestionSchema),
@@ -81,7 +82,7 @@ export default function SurveyDetails() {
       required: false,
     },
   });
-  
+
   // Create question mutation
   const createQuestionMutation = useMutation({
     mutationFn: async (data: CreateQuestionData & { surveyId: number; orderIndex: number }) => {
@@ -105,7 +106,34 @@ export default function SurveyDetails() {
       });
     },
   });
-  
+
+  // Add this mutation for updating the question flow
+  const updateQuestionsMutation = useMutation({
+    mutationFn: async (updatedQuestions: SurveyQuestion[]) => {
+      const res = await apiRequest("PUT", `/api/surveys/${surveyId}/questions/flow`, updatedQuestions);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Survey flow updated",
+        description: "Your survey flow has been saved successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/surveys", surveyId, "questions"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update survey flow",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add this handler function
+  const handleSaveFlowQuestions = (updatedQuestions: SurveyQuestion[]) => {
+    updateQuestionsMutation.mutate(updatedQuestions);
+  };
+
   const onSubmit = (data: CreateQuestionData) => {
     createQuestionMutation.mutate({
       ...data,
@@ -113,13 +141,13 @@ export default function SurveyDetails() {
       orderIndex: questions.length, // Add to the end of the list
     });
   };
-  
+
   // Format date
   const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return "N/A";
     return format(new Date(dateString), "MMM d, yyyy");
   };
-  
+
   // Format minutes to a readable time
   const formatTime = (minutes: number) => {
     if (minutes < 60) {
@@ -129,7 +157,7 @@ export default function SurveyDetails() {
     const remainingMinutes = minutes % 60;
     return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ''}`;
   };
-  
+
   // Status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -143,7 +171,7 @@ export default function SurveyDetails() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
-  
+
   if (surveyLoading) {
     return (
       <MainLayout pageTitle="Survey Details" pageDescription="Loading...">
@@ -153,7 +181,7 @@ export default function SurveyDetails() {
       </MainLayout>
     );
   }
-  
+
   if (!survey) {
     return (
       <MainLayout pageTitle="Survey Not Found" pageDescription="The requested survey could not be found">
@@ -167,10 +195,10 @@ export default function SurveyDetails() {
       </MainLayout>
     );
   }
-  
+
   return (
-    <MainLayout 
-      pageTitle={survey.title} 
+    <MainLayout
+      pageTitle={survey.title}
       pageDescription="Manage survey details and questions"
       backLink="/client/surveys"
       backLinkLabel="Back to Surveys"
@@ -216,14 +244,15 @@ export default function SurveyDetails() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="questions">Questions</TabsTrigger>
+            <TabsTrigger value="flow">Flow Builder</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="details" className="space-y-4">
             <Card>
               <CardHeader>
@@ -251,7 +280,7 @@ export default function SurveyDetails() {
               </CardFooter>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="questions" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold">Survey Questions</h2>
@@ -284,7 +313,7 @@ export default function SurveyDetails() {
                           </FormItem>
                         )}
                       />
-                      
+
                       <FormField
                         control={form.control}
                         name="questionType"
@@ -316,7 +345,7 @@ export default function SurveyDetails() {
                           </FormItem>
                         )}
                       />
-                      
+
                       {(form.watch("questionType") === "mcq") && (
                         <FormField
                           control={form.control}
@@ -338,7 +367,7 @@ export default function SurveyDetails() {
                           )}
                         />
                       )}
-                      
+
                       <FormField
                         control={form.control}
                         name="required"
@@ -361,7 +390,7 @@ export default function SurveyDetails() {
                           </FormItem>
                         )}
                       />
-                      
+
                       <DialogFooter>
                         <Button
                           type="button"
@@ -386,7 +415,7 @@ export default function SurveyDetails() {
                 </DialogContent>
               </Dialog>
             </div>
-            
+
             {questionsLoading ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -447,12 +476,12 @@ export default function SurveyDetails() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="analytics" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold">Survey Analytics</h2>
             </div>
-            
+
             {responsesLoading ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -484,7 +513,7 @@ export default function SurveyDetails() {
                     </div>
                   </CardContent>
                 </Card>
-                
+
                 {/* Question stats card */}
                 <Card>
                   <CardHeader>
@@ -505,9 +534,9 @@ export default function SurveyDetails() {
                     ) : (
                       <div className="space-y-4">
                         <p className="text-sm font-medium">Response Distribution</p>
-                        <Progress 
-                          value={responses.length ? (responses.filter(r => r.completed).length / responses.length) * 100 : 0} 
-                          className="h-2 w-full" 
+                        <Progress
+                          value={responses.length ? (responses.filter(r => r.completed).length / responses.length) * 100 : 0}
+                          className="h-2 w-full"
                         />
                         <p className="text-xs text-gray-500 text-right">
                           {responses.filter(r => r.completed).length.toString()} completed out of {responses.length.toString()} total responses
@@ -516,14 +545,14 @@ export default function SurveyDetails() {
                     )}
                   </CardContent>
                 </Card>
-                
+
                 {/* Response details */}
                 {responses.length > 0 && questions.map(question => {
                   // Get all responses for this question
-                  const questionResponses = responses.flatMap(response => 
+                  const questionResponses = responses.flatMap(response =>
                     response.questionResponses?.filter(qr => qr.questionId === question.id) || []
                   );
-                  
+
                   // Calculate option statistics for MCQ questions
                   if (question.questionType === "mcq" && question.options) {
                     const options = question.options.split("\n");
@@ -534,7 +563,7 @@ export default function SurveyDetails() {
                         : 0;
                       return { option, count, percentage };
                     });
-                    
+
                     return (
                       <Card key={question.id} className="col-span-1 md:col-span-2">
                         <CardHeader>
@@ -557,14 +586,14 @@ export default function SurveyDetails() {
                       </Card>
                     );
                   }
-                  
+
                   // For scale questions, show distribution across the scale
                   else if (question.questionType === "scale" && questionResponses.length > 0) {
                     // Count responses for each scale value (1-10)
                     const scaleCounts = Array(10).fill(0);
                     let totalResponses = 0;
                     let sum = 0;
-                    
+
                     questionResponses.forEach(qr => {
                       if (qr.response) {
                         const value = parseInt(qr.response);
@@ -575,18 +604,18 @@ export default function SurveyDetails() {
                         }
                       }
                     });
-                    
+
                     // Calculate average score
                     const average = totalResponses > 0 ? (sum / totalResponses).toFixed(1) : "N/A";
-                    
+
                     // Calculate percentages for visualization
                     const scaleData = scaleCounts.map((count, index) => {
-                      const percentage = totalResponses > 0 
-                        ? Math.round((count / totalResponses) * 100) 
+                      const percentage = totalResponses > 0
+                        ? Math.round((count / totalResponses) * 100)
                         : 0;
                       return { value: index + 1, count, percentage };
                     });
-                    
+
                     return (
                       <Card key={question.id} className="col-span-1 md:col-span-2">
                         <CardHeader>
@@ -609,13 +638,13 @@ export default function SurveyDetails() {
                       </Card>
                     );
                   }
-                  
+
                   // For text questions, show a list of responses
                   else if (question.questionType === "text" && questionResponses.length > 0) {
                     const textResponses = questionResponses
                       .filter(qr => qr.response && qr.response.trim() !== '')
                       .map(qr => qr.response);
-                    
+
                     return (
                       <Card key={question.id} className="col-span-1 md:col-span-2">
                         <CardHeader>
@@ -638,11 +667,47 @@ export default function SurveyDetails() {
                       </Card>
                     );
                   }
-                  
+
                   return null;
                 })}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="flow" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Survey Flow Builder</CardTitle>
+                <CardDescription>
+                  Define the question flow and branching logic. Connect questions based on answers.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {questionsLoading ? (
+                  <div className="flex items-center justify-center h-40">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : questions.length < 2 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 mb-4">
+                      You need at least two questions to build a flow.
+                    </p>
+                    <Button
+                      onClick={() => setIsDialogOpen(true)}
+                      variant="outline"
+                    >
+                      Add More Questions
+                    </Button>
+                  </div>
+                ) : (
+                  <SurveyBuilder
+                    survey={survey}
+                    questions={questions}
+                    onSave={handleSaveFlowQuestions}
+                  />
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

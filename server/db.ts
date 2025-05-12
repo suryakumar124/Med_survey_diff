@@ -1,5 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Client, Pool } from 'pg';
+// Option 2: Alternative ESM import
+import pkg from 'pg';
+const { Client, Pool } = pkg;
 import * as schema from "@shared/schema";
 import ws from "ws";
 

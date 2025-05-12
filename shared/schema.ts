@@ -76,6 +76,7 @@ export const surveys = pgTable("surveys", {
 });
 
 // Survey Question entity
+// Update the surveyQuestions table definition to better structure conditional logic
 export const surveyQuestions = pgTable("survey_questions", {
   id: serial("id").primaryKey(),
   surveyId: integer("survey_id").notNull().references(() => surveys.id),
@@ -84,7 +85,8 @@ export const surveyQuestions = pgTable("survey_questions", {
   options: text("options"), // JSON string for options
   required: boolean("required").notNull().default(false),
   orderIndex: integer("order_index").notNull(),
-  conditionalLogic: text("conditional_logic"), // JSON string for logic
+  // Change this line to better define the conditional logic structure
+  conditionalLogic: text("conditional_logic"), // JSON string for: { nextQuestionId, branches: { option: questionId } }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
