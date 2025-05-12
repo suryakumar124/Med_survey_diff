@@ -34,28 +34,30 @@ export function SurveyTakingFlow({ questions, onSubmit, onSave }: SurveyTakingFl
   const currentQuestion = questions.find(q => q.id === currentQuestionId);
   
   // Find the next question based on conditional logic
-  const findNextQuestion = (currentQ: SurveyQuestion, answer: any): number | null => {
-    if (!currentQ.conditionalLogic) {
-      // If no conditional logic, go to the next question by orderIndex
-      const nextQByOrder = questions.find(q => q.orderIndex === currentQ.orderIndex + 1);
-      return nextQByOrder?.id || null;
+  // Lines to modify in client/src/components/survey/survey-taking-flow.tsx
+// Update findNextQuestion function around line 48-62
+const findNextQuestion = (currentQ: SurveyQuestion, answer: any): number | null => {
+  if (!currentQ.conditionalLogic) {
+    // If no conditional logic, go to the next question by orderIndex
+    const nextQByOrder = questions.find(q => q.orderIndex === currentQ.orderIndex + 1);
+    return nextQByOrder?.id || null;
+  }
+  
+  try {
+    const logic = JSON.parse(currentQ.conditionalLogic);
+    
+    // For MCQ questions, check if there's a branch for this answer
+    if (currentQ.questionType === 'mcq' && logic.branches && logic.branches[answer]) {
+      return parseInt(logic.branches[answer]);
     }
     
-    try {
-      const logic = JSON.parse(currentQ.conditionalLogic);
-      
-      // For MCQ questions, check if there's a branch for this answer
-      if (currentQ.questionType === 'mcq' && logic.branches && logic.branches[answer]) {
-        return logic.branches[answer];
-      }
-      
-      // Otherwise, use the default next question
-      return logic.nextQuestionId || null;
-    } catch (e) {
-      console.error('Error parsing conditional logic', e);
-      return null;
-    }
-  };
+    // Otherwise, use the default next question
+    return logic.nextQuestionId ? parseInt(logic.nextQuestionId) : null;
+  } catch (e) {
+    console.error('Error parsing conditional logic', e);
+    return null;
+  }
+};
   
   // Handle question answer
   const handleAnswer = (answer: any) => {

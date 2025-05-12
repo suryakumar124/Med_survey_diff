@@ -1,3 +1,4 @@
+// Modifications to client/src/pages/doctor/survey-details.tsx
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2, Award, Clock, FileText, CheckCircle, ArrowRightCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
+import { SurveyTakingFlow } from "@/components/survey/survey-taking-flow";
 
 export default function DoctorSurveyDetails() {
   const { id } = useParams();
@@ -97,6 +99,34 @@ export default function DoctorSurveyDetails() {
     },
   });
   
+  // Handle saving progress
+  const handleSaveProgress = (responses: any[]) => {
+    setAutoSaving(true);
+    
+    // Convert responses to the format expected by the API
+    const formattedResponses = responses.map(r => ({
+      questionId: r.questionId,
+      response: JSON.stringify(r.response)
+    }));
+    
+    if (formattedResponses.length > 0) {
+      saveProgressMutation.mutate(formattedResponses);
+    } else {
+      setAutoSaving(false);
+    }
+  };
+  
+  // Handle survey submission
+  const handleSubmitSurvey = (responses: any[]) => {
+    // Convert responses to the format expected by the API
+    const formattedResponses = responses.map(r => ({
+      questionId: r.questionId,
+      data: r.response
+    }));
+    
+    takeSurveyMutation.mutate(formattedResponses);
+  };
+  
   // Format date
   const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return "N/A";
@@ -128,93 +158,18 @@ export default function DoctorSurveyDetails() {
   };
 
   const handleTakeSurvey = () => {
-    // Collect responses only if we're in the questions tab
-    if (activeTab !== "questions") {
-      // Switch to questions tab if user clicked "Take Survey Now" from details tab
-      setActiveTab("questions");
-      return;
-    }
-    
-    // Validate and collect responses
-    const requiredQuestions = questions.filter(q => q.required);
-    const missingRequired = requiredQuestions.filter(q => !questionResponses[q.id]);
-    
-    if (missingRequired.length > 0) {
-      toast({
-        title: "Missing required answers",
-        description: `Please answer all required questions before submitting.`,
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Format responses for API
-    const responses = questions.map(question => ({
-      questionId: question.id,
-      response: questionResponses[question.id] || null
-    })).filter(r => r.response !== null);
-    
-    // Don't submit if no responses
-    if (responses.length === 0) {
-      toast({
-        title: "No answers provided",
-        description: "Please answer at least one question before submitting.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    takeSurveyMutation.mutate(responses);
+    // Switch to questions tab if user clicked "Take Survey Now" from details tab
+    setActiveTab("questions");
   };
   
-  // Handle response changes for different question types
-  const handleTextResponse = (questionId: number, value: string) => {
-    setQuestionResponses(prev => ({
-      ...prev,
-      [questionId]: value
-    }));
-  };
-  
-  const handleMcqResponse = (questionId: number, option: string) => {
-    setQuestionResponses(prev => ({
-      ...prev,
-      [questionId]: option
-    }));
-  };
-  
-  const handleScaleResponse = (questionId: number, value: number) => {
-    setQuestionResponses(prev => ({
-      ...prev,
-      [questionId]: value
-    }));
-  };
-  
-  // Auto-save responses when they change
-  useEffect(() => {
-    // Don't auto-save if no changes or no questions loaded yet
-    if (Object.keys(questionResponses).length === 0 || questions.length === 0) {
-      return;
-    }
+  // Check if the survey has already been completed
+  const isSurveyCompleted = () => {
+    if (!existingResponses || responsesLoading) return false;
     
-    // Set a timer to auto-save after 2 seconds of inactivity
-    const timer = setTimeout(() => {
-      setAutoSaving(true);
-      
-      // Format responses for API
-      const responses = questions.map(question => ({
-        questionId: question.id,
-        response: questionResponses[question.id] || null
-      })).filter(r => r.response !== null);
-      
-      if (responses.length > 0) {
-        saveProgressMutation.mutate(responses);
-      } else {
-        setAutoSaving(false);
-      }
-    }, 2000);
-    
-    return () => clearTimeout(timer);
-  }, [questionResponses, questions, saveProgressMutation]);
+    return existingResponses.some((response: any) => 
+      response.surveyId === surveyId && response.completed
+    );
+  };
   
   // Load partial responses when the component mounts
   useEffect(() => {
@@ -255,7 +210,7 @@ export default function DoctorSurveyDetails() {
         });
       }
     }
-  }, [existingResponses, responsesLoading, surveyId, toast]);
+  }, [existingResponses, responsesLoading, surveyId]);
   
   if (surveyLoading) {
     return (
@@ -281,6 +236,8 @@ export default function DoctorSurveyDetails() {
     );
   }
   
+  const completed = isSurveyCompleted();
+  
   return (
     <MainLayout 
       pageTitle={survey.title} 
@@ -300,6 +257,9 @@ export default function DoctorSurveyDetails() {
               </div>
               <div className="flex items-center space-x-3 mt-4 md:mt-0">
                 {getStatusBadge(survey.status)}
+                {completed && (
+                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Completed</Badge>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -333,7 +293,9 @@ export default function DoctorSurveyDetails() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="questions">Questions</TabsTrigger>
+            <TabsTrigger value="questions" disabled={completed}>
+              {completed ? "Completed" : "Questions"}
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="details" className="space-y-4">
@@ -359,50 +321,44 @@ export default function DoctorSurveyDetails() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button 
-                  onClick={handleTakeSurvey}
-                  disabled={takeSurveyMutation.isPending}
-                  className="space-x-2"
-                >
-                  {takeSurveyMutation.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Take Survey Now</span>
-                    </>
-                  )}
-                </Button>
+                {completed ? (
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <CheckCircle className="h-5 w-5" />
+                    <span>Survey Completed</span>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={handleTakeSurvey}
+                    disabled={takeSurveyMutation.isPending}
+                    className="space-x-2"
+                  >
+                    {takeSurveyMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        <span>Take Survey Now</span>
+                      </>
+                    )}
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           </TabsContent>
           
           <TabsContent value="questions" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Survey Questions</h2>
-              <Button 
-                onClick={handleTakeSurvey}
-                disabled={takeSurveyMutation.isPending}
-                className="space-x-2"
-              >
-                {takeSurveyMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Submitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowRightCircle className="h-4 w-4" />
-                    <span>Submit Answers</span>
-                  </>
-                )}
-              </Button>
-            </div>
-            
-            {questionsLoading ? (
+            {completed ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">Survey Completed</h3>
+                  <p className="text-gray-500 mb-4">You have already completed this survey.</p>
+                </CardContent>
+              </Card>
+            ) : questionsLoading ? (
               <div className="flex items-center justify-center h-40">
                 <Loader2 className="w-6 h-6 animate-spin text-primary" />
               </div>
@@ -413,80 +369,25 @@ export default function DoctorSurveyDetails() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {questions.map((question, index) => (
-                  <Card key={question.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between">
-                        <div>
-                          <Badge variant="outline" className="mb-2">
-                            {question.questionType.charAt(0).toUpperCase() + question.questionType.slice(1)}
-                          </Badge>
-                          <CardTitle className="text-lg">
-                            {index + 1}. {question.questionText}
-                          </CardTitle>
-                        </div>
-                        <div>
-                          {question.required && (
-                            <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Required</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      {question.questionType === "mcq" || question.questionType === "ranking" ? (
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Options:</p>
-                          <div className="space-y-2 mt-3">
-                            {question.options?.split("\n").map((option, i) => (
-                              <div key={i} className="flex items-center space-x-2">
-                                <input
-                                  type="radio"
-                                  id={`option-${question.id}-${i}`}
-                                  name={`question-${question.id}`}
-                                  checked={questionResponses[question.id] === option}
-                                  onChange={() => handleMcqResponse(question.id, option)}
-                                  className="h-4 w-4 text-primary focus:ring-primary"
-                                />
-                                <label htmlFor={`option-${question.id}-${i}`} className="text-sm">
-                                  {option}
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : question.questionType === "text" ? (
-                        <div className="mt-2">
-                          <textarea 
-                            className="w-full p-2 border border-gray-300 rounded-md"
-                            placeholder="Enter your answer here"
-                            rows={3}
-                            value={questionResponses[question.id] || ''}
-                            onChange={(e) => handleTextResponse(question.id, e.target.value)}
-                          />
-                        </div>
-                      ) : question.questionType === "scale" ? (
-                        <div className="mt-2 flex items-center space-x-1">
-                          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              onClick={() => handleScaleResponse(question.id, num)}
-                              className={`w-8 h-8 rounded-full border
-                                ${questionResponses[question.id] === num 
-                                  ? 'bg-primary text-white border-primary' 
-                                  : 'border-gray-300 hover:bg-primary/10 hover:text-primary'}
-                                focus:outline-none focus:ring-2 focus:ring-primary`}
-                            >
-                              {num}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <>
+                {autoSaving && (
+                  <div className="flex items-center justify-end text-sm text-gray-500">
+                    <Loader2 className="w-3 h-3 animate-spin mr-2" />
+                    Saving progress...
+                  </div>
+                )}
+                {lastSaved && !autoSaving && (
+                  <div className="flex items-center justify-end text-sm text-gray-500">
+                    Last saved: {format(lastSaved, "HH:mm:ss")}
+                  </div>
+                )}
+                <SurveyTakingFlow 
+                  questions={questions}
+                  onSave={handleSaveProgress}
+                  onSubmit={handleSubmitSurvey}
+                  initialResponses={questionResponses}
+                />
+              </>
             )}
           </TabsContent>
         </Tabs>
