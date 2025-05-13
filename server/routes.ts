@@ -1142,6 +1142,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/redemptions", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      let redemptions = [];
+
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (client) {
+          // Get all doctors associated with this client
+          const doctors = await storage.getDoctorsByClientId(client.id);
+
+          // Get redemptions for all these doctors
+          for (const doctor of doctors) {
+            const doctorRedemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+            redemptions = [...redemptions, ...doctorRedemptions];
+          }
+        }
+      } else if (req.user.role === "admin") {
+        // For admin, we could either get all redemptions or filter by client if a query param is provided
+        if (req.query.clientId) {
+          const clientId = parseInt(req.query.clientId as string);
+          const doctors = await storage.getDoctorsByClientId(clientId);
+
+          for (const doctor of doctors) {
+            const doctorRedemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+            redemptions = [...redemptions, ...doctorRedemptions];
+          }
+        } else {
+          // This might return a lot of data - you might want to implement pagination
+          // For simplicity, we're not doing that here
+          const allDoctors = await storage.getAllDoctors();
+
+          for (const doctor of allDoctors) {
+            const doctorRedemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+            redemptions = [...redemptions, ...doctorRedemptions];
+          }
+        }
+      }
+
+      res.json(redemptions);
+    } catch (error) {
+      console.error("Error fetching redemptions:", error);
+      res.status(500).json({ message: "Failed to fetch redemption data" });
+    }
+  });
   // Doctor Assignment Routes
   app.post("/api/representatives/:id/doctors", hasRole(["client", "admin"]), async (req, res) => {
     try {

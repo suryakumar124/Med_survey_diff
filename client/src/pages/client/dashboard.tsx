@@ -20,6 +20,11 @@ export default function ClientDashboard() {
     queryKey: ["/api/doctors"],
   });
 
+  const { data: redemptions, isLoading: redemptionsLoading } = useQuery({
+    queryKey: ["/api/redemptions"],
+    // Add this endpoint if not available yet
+  });
+
   // Mock data for the chart
   const completionChartData = [
     { name: "Jan", total: 40, completed: 30 },
@@ -73,7 +78,16 @@ export default function ClientDashboard() {
     }
   ];
 
-  const isLoading = surveysLoading || doctorsLoading;
+  const isLoading = surveysLoading || doctorsLoading || redemptionsLoading;
+
+  const totalPointsRedeemed = redemptions?.reduce((total, redemption) => {
+    // Only count completed/processed redemptions
+    if (redemption.status === "completed" || redemption.status === "processed") {
+      return total + redemption.points;
+    }
+    return total;
+  }, 0) || 0;
+  const formattedPointsRedeemed = totalPointsRedeemed.toLocaleString();
 
   // Calculate statistics
   const totalSurveys = surveys?.length || 0;
@@ -103,7 +117,7 @@ export default function ClientDashboard() {
     },
     {
       title: "Points Redeemed",
-      value: "8,320",
+      value: formattedPointsRedeemed,
       change: -3,
       icon: "points"
     }
@@ -127,13 +141,13 @@ export default function ClientDashboard() {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-7">
             {/* Survey Completion Chart */}
             <div className="col-span-1 lg:col-span-4">
-              <SurveyCompletionChart data={completionChartData} />
+              <SurveyCompletionChart surveys={surveys} />
             </div>
 
             {/* Recent Activity */}
-            <div className="col-span-1 lg:col-span-3">
+            {/* <div className="col-span-1 lg:col-span-3">
               <RecentActivity activities={recentActivity} />
-            </div>
+            </div> */}
           </div>
 
           {/* Recent Surveys Section */}

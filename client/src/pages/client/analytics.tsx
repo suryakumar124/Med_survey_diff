@@ -5,14 +5,14 @@ import { SurveyCompletionChart } from "@/components/analytics/survey-completion-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -35,7 +35,20 @@ export default function ClientAnalytics() {
     queryKey: ["/api/doctors"],
   });
 
-  const isLoading = surveysLoading || doctorsLoading;
+  const { data: redemptions, isLoading: redemptionsLoading } = useQuery({
+    queryKey: ["/api/redemptions"],
+  });
+  const isLoading = surveysLoading || doctorsLoading || redemptionsLoading;
+  const totalPointsRedeemed = redemptions?.reduce((total, redemption) => {
+    // Only count completed/processed redemptions
+    if (redemption.status === "completed" || redemption.status === "processed") {
+      return total + redemption.points;
+    }
+    return total;
+  }, 0) || 0;
+
+  // Format the number with commas
+  const formattedPointsRedeemed = totalPointsRedeemed.toLocaleString();
 
   // Mock data for charts
   const completionChartData = [
@@ -109,7 +122,7 @@ export default function ClientAnalytics() {
     },
     {
       title: "Points Redeemed",
-      value: "8,320",
+      value: `${formattedPointsRedeemed}`,
       change: 15,
       icon: "points"
     }
@@ -133,13 +146,13 @@ export default function ClientAnalytics() {
               <TabsTrigger value="doctors">Doctor Analytics</TabsTrigger>
               <TabsTrigger value="points">Points & Redemptions</TabsTrigger>
             </TabsList>
-            
+
             {/* Survey Analytics Tab */}
             <TabsContent value="surveys">
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 {/* Survey Completion Chart */}
-                <SurveyCompletionChart data={completionChartData} />
-                
+                <SurveyCompletionChart surveys={surveys} />
+
                 {/* Survey by Status */}
                 <Card>
                   <CardHeader>
@@ -177,7 +190,7 @@ export default function ClientAnalytics() {
                 </Card>
               </div>
             </TabsContent>
-            
+
             {/* Doctor Analytics Tab */}
             <TabsContent value="doctors">
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -210,7 +223,7 @@ export default function ClientAnalytics() {
                     </div>
                   </CardContent>
                 </Card>
-                
+
                 {/* Doctor Specialty Distribution */}
                 <Card>
                   <CardHeader>
@@ -244,7 +257,7 @@ export default function ClientAnalytics() {
                 </Card>
               </div>
             </TabsContent>
-            
+
             {/* Points & Redemptions Tab */}
             <TabsContent value="points">
               <div className="grid grid-cols-1 gap-6">

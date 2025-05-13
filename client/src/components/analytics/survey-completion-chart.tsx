@@ -19,16 +19,29 @@ interface SurveyCompletionData {
   completed: number;
 }
 
-interface SurveyCompletionChartProps {
-  data: SurveyCompletionData[];
+interface Survey {
+  id: number;
+  title: string;
+  responseCount: number;
+  completedCount: number;
+  completionRate: number;
 }
 
-export function SurveyCompletionChart({ data }: SurveyCompletionChartProps) {
+// Change the props interface to accept the survey data directly
+interface SurveyCompletionChartProps {
+  surveys: Survey[];
+}
+
+export function SurveyCompletionChart({ surveys }: SurveyCompletionChartProps) {
   const [timeframe, setTimeframe] = useState("7days");
 
   // Filter data based on timeframe in a real app
   // This is just for demonstration
-  const chartData = data;
+ const chartData = surveys.map(survey => ({
+    name: survey.title,
+    total: survey.responseCount,
+    completed: survey.completedCount
+  }));
 
   // Custom tooltip for the chart
   const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
@@ -64,7 +77,7 @@ export function SurveyCompletionChart({ data }: SurveyCompletionChartProps) {
             Overview of survey responses and completion rates
           </CardDescription>
         </div>
-        <Select value={timeframe} onValueChange={setTimeframe}>
+        {/* <Select value={timeframe} onValueChange={setTimeframe}>
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Select timeframe" />
           </SelectTrigger>
@@ -74,7 +87,7 @@ export function SurveyCompletionChart({ data }: SurveyCompletionChartProps) {
             <SelectItem value="90days">Last 90 days</SelectItem>
             <SelectItem value="year">Last 12 months</SelectItem>
           </SelectContent>
-        </Select>
+        </Select> */}
       </CardHeader>
       <CardContent className="pt-2">
         <div className="h-[300px]">

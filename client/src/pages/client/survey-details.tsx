@@ -752,7 +752,7 @@ export default function SurveyDetails() {
                       <Users className="h-10 w-10 text-primary p-2 bg-primary/10 rounded-full" />
                       <div>
                         <p className="text-sm font-medium text-gray-500">Total Responses</p>
-                        <p className="text-2xl font-bold">{responses.length.toString()}</p>
+                        <p className="text-2xl font-bold">{responses.length}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -760,7 +760,7 @@ export default function SurveyDetails() {
                       <div>
                         <p className="text-sm font-medium text-gray-500">Completion Rate</p>
                         <p className="text-2xl font-bold">
-                          {responses.length ? Math.round((responses.filter(r => r.completed).length / responses.length) * 100).toString() : "0"}%
+                          {responses.length ? Math.round((responses.filter(r => r.completed).length / responses.length) * 100) : "0"}%
                         </p>
                       </div>
                     </div>
@@ -792,7 +792,7 @@ export default function SurveyDetails() {
                           className="h-2 w-full"
                         />
                         <p className="text-xs text-gray-500 text-right">
-                          {responses.filter(r => r.completed).length.toString()} completed out of {responses.length.toString()} total responses
+                          {responses.filter(r => r.completed).length} completed out of {responses.length} total responses
                         </p>
                       </div>
                     )}
@@ -806,13 +806,28 @@ export default function SurveyDetails() {
                     response.questionResponses?.filter(qr => qr.questionId === question.id) || []
                   );
 
+                  // Parse response data from JSON strings
+                  const parsedResponses = questionResponses.map(qr => {
+                    try {
+                      return {
+                        ...qr,
+                        parsedResponse: JSON.parse(qr.responseData)
+                      };
+                    } catch (e) {
+                      return {
+                        ...qr,
+                        parsedResponse: qr.responseData
+                      };
+                    }
+                  });
+
                   // Calculate option statistics for MCQ questions
                   if (question.questionType === "mcq" && question.options) {
                     const options = question.options.split("\n");
                     const optionCounts = options.map(option => {
-                      const count = questionResponses.filter(qr => qr.response === option).length;
-                      const percentage = questionResponses.length > 0
-                        ? Math.round((count / questionResponses.length) * 100)
+                      const count = parsedResponses.filter(qr => qr.parsedResponse === option).length;
+                      const percentage = parsedResponses.length > 0
+                        ? Math.round((count / parsedResponses.length) * 100)
                         : 0;
                       return { option, count, percentage };
                     });
@@ -829,7 +844,7 @@ export default function SurveyDetails() {
                               <div key={index} className="space-y-2">
                                 <div className="flex justify-between">
                                   <p className="text-sm font-medium">{option.option}</p>
-                                  <p className="text-sm text-gray-500">{option.count.toString()} ({option.percentage.toString()}%)</p>
+                                  <p className="text-sm text-gray-500">{option.count} ({option.percentage}%)</p>
                                 </div>
                                 <Progress value={option.percentage} className="h-2 w-full" />
                               </div>
@@ -841,15 +856,15 @@ export default function SurveyDetails() {
                   }
 
                   // For scale questions, show distribution across the scale
-                  else if (question.questionType === "scale" && questionResponses.length > 0) {
+                  else if (question.questionType === "scale" && parsedResponses.length > 0) {
                     // Count responses for each scale value (1-10)
                     const scaleCounts = Array(10).fill(0);
                     let totalResponses = 0;
                     let sum = 0;
 
-                    questionResponses.forEach(qr => {
-                      if (qr.response) {
-                        const value = parseInt(qr.response);
+                    parsedResponses.forEach(qr => {
+                      if (qr.parsedResponse) {
+                        const value = parseInt(qr.parsedResponse);
                         if (!isNaN(value) && value >= 1 && value <= 10) {
                           scaleCounts[value - 1]++;
                           sum += value;
@@ -880,8 +895,8 @@ export default function SurveyDetails() {
                             {scaleData.map((item) => (
                               <div key={item.value} className="space-y-2">
                                 <div className="flex justify-between">
-                                  <p className="text-sm font-medium">Scale {item.value.toString()}</p>
-                                  <p className="text-sm text-gray-500">{item.count.toString()} ({item.percentage.toString()}%)</p>
+                                  <p className="text-sm font-medium">Scale {item.value}</p>
+                                  <p className="text-sm text-gray-500">{item.count} ({item.percentage}%)</p>
                                 </div>
                                 <Progress value={item.percentage} className="h-2 w-full" />
                               </div>
@@ -893,16 +908,16 @@ export default function SurveyDetails() {
                   }
 
                   // For text questions, show a list of responses
-                  else if (question.questionType === "text" && questionResponses.length > 0) {
-                    const textResponses = questionResponses
-                      .filter(qr => qr.response && qr.response.trim() !== '')
-                      .map(qr => qr.response);
+                  else if (question.questionType === "text" && parsedResponses.length > 0) {
+                    const textResponses = parsedResponses
+                      .filter(qr => qr.parsedResponse && qr.parsedResponse.trim !== '')
+                      .map(qr => qr.parsedResponse);
 
                     return (
                       <Card key={question.id} className="col-span-1 md:col-span-2">
                         <CardHeader>
                           <CardTitle className="text-lg">{question.questionText}</CardTitle>
-                          <CardDescription>Text responses ({textResponses.length.toString()} total)</CardDescription>
+                          <CardDescription>Text responses ({textResponses.length} total)</CardDescription>
                         </CardHeader>
                         <CardContent>
                           {textResponses.length === 0 ? (
