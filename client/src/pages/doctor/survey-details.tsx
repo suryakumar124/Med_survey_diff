@@ -19,11 +19,11 @@ export default function DoctorSurveyDetails() {
   const { id } = useParams();
   const surveyId = parseInt(id as string);
   const [activeTab, setActiveTab] = useState("details");
-  const [questionResponses, setQuestionResponses] = useState<{[key: number]: any}>({});
+  const [questionResponses, setQuestionResponses] = useState<{ [key: number]: any }>({});
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const { user } = useAuth();
-  
+
   // Fetch survey details
   const { data: survey, isLoading: surveyLoading } = useQuery<Survey>({
     queryKey: ["/api/surveys", surveyId],
@@ -34,7 +34,7 @@ export default function DoctorSurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId),
   });
-  
+
   // Fetch survey questions
   const { data: questions = [], isLoading: questionsLoading } = useQuery<SurveyQuestion[]>({
     queryKey: ["/api/surveys", surveyId, "questions"],
@@ -45,7 +45,7 @@ export default function DoctorSurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId),
   });
-  
+
   // Fetch existing doctor responses (partial and complete)
   const { data: existingResponses, isLoading: responsesLoading } = useQuery({
     queryKey: ["/api/doctors/current/responses"],
@@ -56,7 +56,7 @@ export default function DoctorSurveyDetails() {
     },
     enabled: !!surveyId && !isNaN(surveyId),
   });
-  
+
   // Auto-save mutation
   const saveProgressMutation = useMutation({
     mutationFn: async (responses: any[]) => {
@@ -73,7 +73,6 @@ export default function DoctorSurveyDetails() {
       setAutoSaving(false);
     }
   });
-  
   // Take survey mutation
   const takeSurveyMutation = useMutation({
     mutationFn: async (responses: any[]) => {
@@ -98,24 +97,24 @@ export default function DoctorSurveyDetails() {
       });
     },
   });
-  
+
   // Handle saving progress
   const handleSaveProgress = (responses: any[]) => {
     setAutoSaving(true);
-    
+
     // Convert responses to the format expected by the API
     const formattedResponses = responses.map(r => ({
       questionId: r.questionId,
       response: JSON.stringify(r.response)
     }));
-    
+
     if (formattedResponses.length > 0) {
       saveProgressMutation.mutate(formattedResponses);
     } else {
       setAutoSaving(false);
     }
   };
-  
+
   // Handle survey submission
   const handleSubmitSurvey = (responses: any[]) => {
     // Convert responses to the format expected by the API
@@ -123,16 +122,16 @@ export default function DoctorSurveyDetails() {
       questionId: r.questionId,
       data: r.response
     }));
-    
+
     takeSurveyMutation.mutate(formattedResponses);
   };
-  
+
   // Format date
   const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return "N/A";
     return format(new Date(dateString), "MMM d, yyyy");
   };
-  
+
   // Format minutes to a readable time
   const formatTime = (minutes: number) => {
     if (minutes < 60) {
@@ -142,7 +141,7 @@ export default function DoctorSurveyDetails() {
     const remainingMinutes = minutes % 60;
     return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ''}`;
   };
-  
+
   // Status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -161,37 +160,37 @@ export default function DoctorSurveyDetails() {
     // Switch to questions tab if user clicked "Take Survey Now" from details tab
     setActiveTab("questions");
   };
-  
+
   // Check if the survey has already been completed
   const isSurveyCompleted = () => {
     if (!existingResponses || responsesLoading) return false;
-    
-    return existingResponses.some((response: any) => 
+
+    return existingResponses.some((response: any) =>
       response.surveyId === surveyId && response.completed
     );
   };
-  
+
   // Load partial responses when the component mounts
   useEffect(() => {
     if (!existingResponses || responsesLoading) return;
-    
+
     // Find existing response for this survey
-    const surveyResponse = existingResponses.find((response: any) => 
+    const surveyResponse = existingResponses.find((response: any) =>
       response.surveyId === surveyId && !response.completed
     );
-    
+
     if (surveyResponse) {
       // Load existing question responses
-      const existingQuestionResponses: {[key: number]: any} = {};
-      
+      const existingQuestionResponses: { [key: number]: any } = {};
+
       surveyResponse.questionResponses.forEach((qr: any) => {
         if (qr.responseData) {
           try {
             // Try to parse JSON if it's stored as a string
-            const parsedResponse = typeof qr.responseData === 'string' 
-              ? JSON.parse(qr.responseData) 
+            const parsedResponse = typeof qr.responseData === 'string'
+              ? JSON.parse(qr.responseData)
               : qr.responseData;
-            
+
             existingQuestionResponses[qr.questionId] = parsedResponse;
           } catch (e) {
             // If parsing fails, use the raw response data
@@ -199,10 +198,10 @@ export default function DoctorSurveyDetails() {
           }
         }
       });
-      
+
       if (Object.keys(existingQuestionResponses).length > 0) {
         setQuestionResponses(existingQuestionResponses);
-        
+
         // Show a toast notification if there are saved responses
         toast({
           title: "Saved responses loaded",
@@ -211,7 +210,7 @@ export default function DoctorSurveyDetails() {
       }
     }
   }, [existingResponses, responsesLoading, surveyId]);
-  
+
   if (surveyLoading) {
     return (
       <MainLayout pageTitle="Survey Details" pageDescription="Loading...">
@@ -221,7 +220,7 @@ export default function DoctorSurveyDetails() {
       </MainLayout>
     );
   }
-  
+
   if (!survey) {
     return (
       <MainLayout pageTitle="Survey Not Found" pageDescription="The requested survey could not be found">
@@ -235,12 +234,12 @@ export default function DoctorSurveyDetails() {
       </MainLayout>
     );
   }
-  
+
   const completed = isSurveyCompleted();
-  
+
   return (
-    <MainLayout 
-      pageTitle={survey.title} 
+    <MainLayout
+      pageTitle={survey.title}
       pageDescription="View survey details and take survey"
       backLink="/doctor/available-surveys"
       backLinkLabel="Back to Available Surveys"
@@ -289,7 +288,7 @@ export default function DoctorSurveyDetails() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Details</TabsTrigger>
@@ -297,7 +296,7 @@ export default function DoctorSurveyDetails() {
               {completed ? "Completed" : "Questions"}
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="details" className="space-y-4">
             <Card>
               <CardHeader>
@@ -327,7 +326,7 @@ export default function DoctorSurveyDetails() {
                     <span>Survey Completed</span>
                   </div>
                 ) : (
-                  <Button 
+                  <Button
                     onClick={handleTakeSurvey}
                     disabled={takeSurveyMutation.isPending}
                     className="space-x-2"
@@ -348,7 +347,7 @@ export default function DoctorSurveyDetails() {
               </CardFooter>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="questions" className="space-y-4">
             {completed ? (
               <Card>
@@ -381,7 +380,7 @@ export default function DoctorSurveyDetails() {
                     Last saved: {format(lastSaved, "HH:mm:ss")}
                   </div>
                 )}
-                <SurveyTakingFlow 
+                <SurveyTakingFlow
                   questions={questions}
                   onSave={handleSaveProgress}
                   onSubmit={handleSubmitSurvey}

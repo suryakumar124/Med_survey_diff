@@ -354,7 +354,7 @@ export default function DoctorDetails() {
                       <div key={qr.id} className="border-b pb-4 last:border-0">
                         <h4 className="font-medium mb-2">{qr.question?.questionText || `Question ${qr.questionId}`}</h4>
                         <div className="bg-gray-50 p-3 rounded">
-                          <p className="text-gray-800">{qr.response}</p>
+                          <p className="text-gray-800">{qr.responseData}</p>
                         </div>
                       </div>
                     ))}

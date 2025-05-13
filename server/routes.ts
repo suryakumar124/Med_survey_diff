@@ -606,7 +606,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to delete question" });
     }
   });
-  
+
   // Save partial survey response (auto-save)
   app.post("/api/surveys/:id/partial-responses", hasRole(["doctor"]), async (req, res) => {
     try {
@@ -642,15 +642,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Save question responses
       if (req.body.responses && Array.isArray(req.body.responses)) {
-        // Clear existing responses first (in a real implementation)
-        // For now we'll just add new ones
-
+        // For each incoming response, check if it already exists and update it
+        // or create a new one if it doesn't exist
         for (const questionResponse of req.body.responses) {
-          await storage.createQuestionResponse({
-            doctorSurveyResponseId: response.id,
-            questionId: questionResponse.questionId,
-            responseData: questionResponse.response
-          });
+          // Get existing question responses for this survey response
+          const existingQuestionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
+
+          // Check if a response for this question already exists
+          const existingResponse = existingQuestionResponses.find(
+            qr => qr.questionId === questionResponse.questionId
+          );
+
+          if (existingResponse) {
+            // Update existing response
+            await storage.updateQuestionResponse(existingResponse.id, {
+              responseData: questionResponse.response
+            });
+          } else {
+            // Create new response
+            await storage.createQuestionResponse({
+              doctorSurveyResponseId: response.id,
+              questionId: questionResponse.questionId,
+              responseData: questionResponse.response
+            });
+          }
         }
       }
 
@@ -752,6 +767,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get question responses
           const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
 
+          // Group responses by questionId and keep only the latest one
+          const questionMap = new Map();
+          for (const qr of questionResponses) {
+            if (!questionMap.has(qr.questionId) ||
+              new Date(qr.updatedAt) > new Date(questionMap.get(qr.questionId).updatedAt)) {
+              questionMap.set(qr.questionId, qr);
+            }
+          }
+
+          // Only take the latest response for each question
+          const uniqueQuestionResponses = Array.from(questionMap.values());
+
           return {
             ...response,
             doctor: doctor ? {
@@ -764,7 +791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 specialty: doctor.specialty
               } : null
             } : null,
-            questionResponses
+            questionResponses: uniqueQuestionResponses
           };
         })
       );
@@ -843,7 +870,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch doctor responses" });
     }
   });
-  // Get doctor's survey responses with associated survey and question response data
   app.get("/api/doctors/:id/responses", isAuthenticated, async (req, res) => {
     try {
       const doctorId = parseInt(req.params.id);
@@ -870,9 +896,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get question responses
           const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
 
+          // Group responses by questionId
+          const questionMap = new Map();
+          for (const qr of questionResponses) {
+            if (!questionMap.has(qr.questionId) ||
+              new Date(qr.updatedAt) > new Date(questionMap.get(qr.questionId).updatedAt)) {
+              questionMap.set(qr.questionId, qr);
+            }
+          }
+
+          // Only take the latest response for each question
+          const uniqueQuestionResponses = Array.from(questionMap.values());
+
           // Enrich question responses with question text
           const enrichedQuestionResponses = await Promise.all(
-            questionResponses.map(async (qr) => {
+            uniqueQuestionResponses.map(async (qr) => {
               const question = await storage.getSurveyQuestion(qr.questionId);
               return {
                 ...qr,
