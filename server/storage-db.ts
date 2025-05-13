@@ -1,4 +1,4 @@
-import { 
+import {
   User, InsertUser, Doctor, InsertDoctor, Client, InsertClient,
   Representative, InsertRepresentative, Survey, InsertSurvey,
   SurveyQuestion, InsertSurveyQuestion, DoctorSurveyResponse,
@@ -21,7 +21,7 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new PostgresSessionStore({ 
+    this.sessionStore = new PostgresSessionStore({
       pool,
       createTableIfMissing: true
     });
@@ -126,9 +126,9 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(doctorClientMappings)
       .where(eq(doctorClientMappings.clientId, clientId));
-    
+
     if (mappings.length === 0) return [];
-    
+
     const doctorIds = mappings.map(m => m.doctorId);
     return db
       .select()
@@ -141,9 +141,9 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(doctorRepMappings)
       .where(eq(doctorRepMappings.representativeId, repId));
-    
+
     if (mappings.length === 0) return [];
-    
+
     const doctorIds = mappings.map(m => m.doctorId);
     return db
       .select()
@@ -254,9 +254,9 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(doctorClientMappings)
       .where(eq(doctorClientMappings.doctorId, doctorId));
-    
+
     if (mappings.length === 0) return [];
-    
+
     // Get surveys from all clients the doctor is associated with
     const clientIds = mappings.map(m => m.clientId);
     return db
@@ -322,7 +322,7 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(doctorSurveyResponses)
         .where(eq(doctorSurveyResponses.id, id));
-      
+
       if (existingResponse && !existingResponse.completed) {
         completedAt = new Date();
       }
@@ -349,6 +349,16 @@ export class DatabaseStorage implements IStorage {
       .from(doctorSurveyResponses)
       .where(eq(doctorSurveyResponses.surveyId, surveyId));
   }
+
+
+  // Add this method after getRedemptionsByDoctorId
+  async getRedemptionsByStatus(status: string): Promise<Redemption[]> {
+    return db
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.status, status));
+  }
+
 
   // Question Response operations
   async getQuestionResponse(id: number): Promise<QuestionResponse | undefined> {
@@ -420,9 +430,9 @@ export class DatabaseStorage implements IStorage {
         eq(doctorClientMappings.doctorId, doctorId),
         eq(doctorClientMappings.clientId, clientId)
       ));
-    
+
     if (existingMapping) return true; // Already exists
-    
+
     await db
       .insert(doctorClientMappings)
       .values({ doctorId, clientId });
@@ -448,9 +458,9 @@ export class DatabaseStorage implements IStorage {
         eq(doctorRepMappings.doctorId, doctorId),
         eq(doctorRepMappings.representativeId, representativeId)
       ));
-    
+
     if (existingMapping) return true; // Already exists
-    
+
     await db
       .insert(doctorRepMappings)
       .values({ doctorId, representativeId });

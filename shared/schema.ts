@@ -113,6 +113,7 @@ export const questionResponses = pgTable("question_responses", {
 });
 
 // Redemption entity
+// Update the redemptions table definition
 export const redemptions = pgTable("redemptions", {
   id: serial("id").primaryKey(),
   doctorId: integer("doctor_id").notNull().references(() => doctors.id),
@@ -120,10 +121,14 @@ export const redemptions = pgTable("redemptions", {
   redemptionType: text("redemption_type").notNull(), // upi, amazon, etc.
   redemptionDetails: text("redemption_details").notNull(), // JSON string with details
   status: text("status").notNull().default("pending"), // pending, processed, completed, failed
+  payoutId: text("payout_id"), // New field for payment gateway ID
+  payoutStatus: text("payout_status"), // New field for payment status
+  payoutResponse: text("payout_response"), // New field for payment response
+  failureReason: text("failure_reason"), // New field for failure reason
+  processedAt: timestamp("processed_at"), // New field for processing timestamp
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,

@@ -46,6 +46,11 @@ export default function DoctorPoints() {
   // Fetch points information
   const { data: pointsInfo, isLoading } = useQuery<PointsInfo>({
     queryKey: ["/api/doctors", doctorInfo?.id, "points"],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/${doctorInfo?.id}/points`);
+      if (!res.ok) throw new Error("Failed to fetch points information");
+      return res.json();
+    },
     enabled: !!doctorInfo?.id,
   });
 
@@ -67,8 +72,8 @@ export default function DoctorPoints() {
   const redeemMutation = useMutation({
     mutationFn: async (data: RedemptionFormData) => {
       const res = await apiRequest(
-        "POST", 
-        `/api/doctors/${doctorInfo?.id}/redeem`, 
+        "POST",
+        `/api/doctors/${doctorInfo?.id}/redeem`,
         data
       );
       return await res.json();
@@ -93,7 +98,7 @@ export default function DoctorPoints() {
 
   const onSubmit = (data: RedemptionFormData) => {
     if (!pointsInfo) return;
-    
+
     // Validate against available points
     if (data.points > pointsInfo.availablePoints) {
       toast({
@@ -103,7 +108,7 @@ export default function DoctorPoints() {
       });
       return;
     }
-    
+
     redeemMutation.mutate(data);
   };
 
@@ -126,6 +131,30 @@ export default function DoctorPoints() {
     return "Enter redemption details";
   };
 
+
+  // Add this function in the component
+  const checkRedemptionStatus = async (redemptionId: number) => {
+    try {
+      const res = await fetch(`/api/redemptions/${redemptionId}/status`);
+      if (!res.ok) throw new Error("Failed to check status");
+
+      const updatedRedemption = await res.json();
+
+      // Refresh the points data to show updated status
+      queryClient.invalidateQueries({ queryKey: ["/api/doctors", doctorInfo?.id, "points"] });
+
+      toast({
+        title: "Status updated",
+        description: `Redemption status: ${updatedRedemption.status}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to check status",
+        description: "Could not retrieve the latest status",
+        variant: "destructive",
+      });
+    }
+  };
   if (isLoading) {
     return (
       <MainLayout pageTitle="My Points" pageDescription="Manage and redeem your earned points">
@@ -166,13 +195,13 @@ export default function DoctorPoints() {
                 <h3 className="text-2xl font-bold text-primary">{pointsInfo.totalPoints}</h3>
                 <p className="text-sm text-gray-600">Total Points Earned</p>
               </div>
-              
+
               <div className="flex flex-col items-center justify-center p-6 bg-green-50 rounded-lg">
                 <Wallet className="h-10 w-10 text-green-600 mb-2" />
                 <h3 className="text-2xl font-bold text-green-600">{pointsInfo.availablePoints}</h3>
                 <p className="text-sm text-gray-600">Available Points</p>
               </div>
-              
+
               <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-lg">
                 <CreditCard className="h-10 w-10 text-gray-600 mb-2" />
                 <h3 className="text-2xl font-bold text-gray-600">{pointsInfo.redeemedPoints}</h3>
@@ -189,7 +218,7 @@ export default function DoctorPoints() {
             <TabsTrigger value="redeem">Redeem Points</TabsTrigger>
             <TabsTrigger value="history">Redemption History</TabsTrigger>
           </TabsList>
-          
+
           {/* Points Overview Tab */}
           <TabsContent value="overview">
             <Card>
@@ -208,7 +237,7 @@ export default function DoctorPoints() {
                     </div>
                     <Progress value={(pointsInfo.redeemedPoints / pointsInfo.totalPoints) * 100} className="h-2" />
                   </div>
-                  
+
                   <div className="rounded-lg border overflow-hidden">
                     <div className="bg-gray-50 px-4 py-3 border-b">
                       <h3 className="text-sm font-medium">Points Breakdown</h3>
@@ -231,20 +260,20 @@ export default function DoctorPoints() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button 
-                  onClick={() => setActiveTab("redeem")} 
+                <Button
+                  onClick={() => setActiveTab("redeem")}
                   disabled={pointsInfo.availablePoints < 100}
                   className="w-full"
                 >
-                  {pointsInfo.availablePoints < 100 
-                    ? "Earn more points to redeem" 
+                  {pointsInfo.availablePoints < 100
+                    ? "Earn more points to redeem"
                     : "Redeem Points"}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
             </Card>
           </TabsContent>
-          
+
           {/* Redeem Points Tab */}
           <TabsContent value="redeem">
             <Card>
@@ -264,9 +293,9 @@ export default function DoctorPoints() {
                         <FormItem>
                           <FormLabel>Points to Redeem</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="Enter points amount" 
+                            <Input
+                              type="number"
+                              placeholder="Enter points amount"
                               min={100}
                               max={pointsInfo.availablePoints}
                               {...field}
@@ -293,21 +322,19 @@ export default function DoctorPoints() {
                         <FormItem>
                           <FormLabel>Redemption Method</FormLabel>
                           <div className="grid grid-cols-2 gap-4">
-                            <div 
-                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${
-                                field.value === "amazon" ? "border-primary bg-primary-50" : "border-gray-200"
-                              }`}
+                            <div
+                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${field.value === "amazon" ? "border-primary bg-primary-50" : "border-gray-200"
+                                }`}
                               onClick={() => field.onChange("amazon")}
                             >
                               <div className="p-2 bg-amber-100 rounded-full mb-2">
-                                <CreditCard className="h-6 w-6 text-amber-600" />
+                                <Wallet className="h-6 w-6 text-amber-600" />
                               </div>
-                              <span className="text-sm font-medium">Amazon Gift Card</span>
+                              <span className="text-sm font-medium">Amazon Pay Balance</span>
                             </div>
-                            <div 
-                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${
-                                field.value === "upi" ? "border-primary bg-primary-50" : "border-gray-200"
-                              }`}
+                            <div
+                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${field.value === "upi" ? "border-primary bg-primary-50" : "border-gray-200"
+                                }`}
                               onClick={() => field.onChange("upi")}
                             >
                               <div className="p-2 bg-green-100 rounded-full mb-2">
@@ -327,27 +354,33 @@ export default function DoctorPoints() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>
-                            {watchedRedemptionType === "upi" ? "UPI ID" : "Email Address"}
+                            {watchedRedemptionType === "upi" ? "UPI ID" : "Mobile Number"}
                           </FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder={getRedemptionDetailsPlaceholder(watchedRedemptionType)} 
-                              {...field} 
+                            <Input
+                              placeholder={
+                                watchedRedemptionType === "upi"
+                                  ? "Enter your UPI ID"
+                                  : "Enter mobile number for Amazon Pay"
+                              }
+                              {...field}
                             />
                           </FormControl>
                           <FormDescription>
-                            {watchedRedemptionType === "upi" 
-                              ? "Enter your UPI ID where you want to receive the money" 
-                              : "Enter the email address where you want to receive the Amazon gift card"}
+                            {watchedRedemptionType === "upi"
+                              ? "Enter your UPI ID where you want to receive the money"
+                              : "Enter the mobile number linked to your Amazon Pay account"}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
+                   
+
+                    <Button
+                      type="submit"
+                      className="w-full"
                       disabled={redeemMutation.isPending || watchedPoints > pointsInfo.availablePoints}
                     >
                       {redeemMutation.isPending ? (
@@ -364,7 +397,7 @@ export default function DoctorPoints() {
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           {/* Redemption History Tab */}
           <TabsContent value="history">
             <Card>
@@ -385,6 +418,17 @@ export default function DoctorPoints() {
                               <Wallet className="h-5 w-5 text-green-600" />
                             )}
                           </div>
+                          {
+                            redemption.payoutId && (
+                              <div className="text-xs mt-2">
+                                <p>Payout ID: {redemption.payoutId}</p>
+                                <p>Status: {redemption.payoutStatus || 'Unknown'}</p>
+                                {redemption.processedAt && (
+                                  <p>Processed: {formatDate(redemption.processedAt)}</p>
+                                )}
+                              </div>
+                            )
+                          }
                           <div>
                             <p className="font-medium">
                               {redemption.redemptionType === "amazon" ? "Amazon Gift Card" : "UPI Transfer"}
@@ -395,17 +439,17 @@ export default function DoctorPoints() {
                           </div>
                         </div>
                         <div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            redemption.status === "completed" 
-                              ? "bg-green-100 text-green-800" 
-                              : redemption.status === "pending" 
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${redemption.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : redemption.status === "pending"
                               ? "bg-amber-100 text-amber-800"
                               : "bg-gray-100 text-gray-800"
-                          }`}>
+                            }`}>
                             {redemption.status.charAt(0).toUpperCase() + redemption.status.slice(1)}
                           </span>
                         </div>
                       </div>
+
                     ))}
                   </div>
                 ) : (
@@ -417,6 +461,7 @@ export default function DoctorPoints() {
                     </p>
                   </div>
                 )}
+
               </CardContent>
             </Card>
           </TabsContent>

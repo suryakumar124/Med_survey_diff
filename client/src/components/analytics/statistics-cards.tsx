@@ -68,7 +68,7 @@ export function StatisticsCards({ stats }: StatisticsCardsProps) {
                     <div className="text-2xl font-semibold text-gray-900">
                       {stat.value}
                     </div>
-                    {stat.change !== undefined && (
+                    {/* {stat.change !== undefined && (
                       <div className={`ml-2 flex items-baseline text-sm font-semibold ${
                         stat.change >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
@@ -80,7 +80,7 @@ export function StatisticsCards({ stats }: StatisticsCardsProps) {
                         <span className="sr-only">{stat.change >= 0 ? 'Increased by' : 'Decreased by'}</span>
                         {Math.abs(stat.change)}%
                       </div>
-                    )}
+                    )} */}
                   </dd>
                 </dl>
               </div>

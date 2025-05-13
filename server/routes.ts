@@ -5,6 +5,7 @@ import { setupAuth } from "./auth";
 import { LoginData, insertSurveySchema, insertSurveyQuestionSchema, insertRedemptionSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { log } from './vite'
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Set up authentication routes
@@ -207,23 +208,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Survey Routes
+  // Update this section of code in server/routes.ts
   app.get("/api/surveys", isAuthenticated, async (req, res) => {
     try {
       let surveys = [];
 
-      if (req.user.role === "client") {
-        const client = await storage.getClientByUserId(req.user.id);
+      if (req.user.role === "doctor") {
+        const doctor = await storage.getDoctorByUserId(req.user.id);
+        if (doctor) {
+          // Get all surveys available to this doctor
+          const allSurveys = await storage.getSurveysForDoctor(doctor.id);
+
+          // Get doctor's completed survey responses
+          const doctorResponses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+          const completedSurveyIds = doctorResponses
+            .filter(response => response.completed)
+            .map(response => response.surveyId);
+
+          // Filter out surveys that have been completed
+          surveys = allSurveys.filter(survey =>
+            survey.status === "active" && !completedSurveyIds.includes(survey.id)
+          );
+        }
+      } else if (req.user.role === "client") {
+         const client = await storage.getClientByUserId(req.user.id);
         if (client) {
           surveys = await storage.getSurveysByClientId(client.id);
         }
-      } else if (req.user.role === "doctor") {
-        const doctor = await storage.getDoctorByUserId(req.user.id);
-        if (doctor) {
-          surveys = await storage.getSurveysForDoctor(doctor.id);
-        }
       } else if (req.user.role === "admin") {
-        // Admin can filter by client
-        if (req.query.clientId) {
+         if (req.query.clientId) {
           surveys = await storage.getSurveysByClientId(parseInt(req.query.clientId as string));
         } else {
           // Get all surveys from all clients
@@ -668,6 +681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const doctorId = parseInt(req.params.id);
       const doctor = await storage.getDoctor(doctorId);
+      console.log("doctor" , doctor)
       if (!doctor) {
         return res.status(404).json({ message: "Doctor not found" });
       }
@@ -678,10 +692,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get redemption history
+      console.log("came till calling redemption history")
       const redemptions = await storage.getRedemptionsByDoctorId(doctorId);
 
       // Calculate available points
-      const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
+      const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
 
       res.json({
         totalPoints: doctor.totalPoints,
@@ -690,10 +705,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         redemptions
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch points information" });
+      res.status(500).json({ message: "Failed to fetch points information", error });
     }
   });
+  app.get("/api/doctors/current/responses", hasRole(["doctor"]), async (req, res) => {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
 
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+      // console.log("Doctor ID:", doctor.id);
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      if (!responses) {
+        return res.json([]);
+      }
+      // log(`Doctor responses: ${JSON.stringify(responses)}`, "doctor-api");
+      // Enhance responses with question responses
+      const enhancedResponses = await Promise.all(responses.map(async (response) => {
+        const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
+
+        // Get survey details
+        const survey = await storage.getSurvey(response.surveyId);
+
+        return {
+          ...response,
+          survey: survey || undefined,
+          questionResponses: questionResponses || []
+        };
+      }));
+
+      res.json(enhancedResponses);
+    } catch (error) {
+      console.error("Error getting doctor responses:", error);
+      res.status(500).json({ message: "Failed to fetch doctor responses" });
+    }
+  });
   // Get doctor's survey responses with associated survey and question response data
   app.get("/api/doctors/:id/responses", isAuthenticated, async (req, res) => {
     try {
@@ -750,53 +800,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
+  // Redeem points for a doctor
+  // Admin route to manually trigger redemption processing
+  app.post("/api/admin/process-redemptions", hasRole(["admin"]), async (req, res) => {
     try {
-      const doctorId = parseInt(req.params.id);
-      const doctor = await storage.getDoctor(doctorId);
-      if (!doctor) {
-        return res.status(404).json({ message: "Doctor not found" });
-      }
-
-      // Check permissions
-      if (doctor.userId !== req.user.id) {
-        return res.status(403).json({ message: "Forbidden: Not your profile" });
-      }
-
-      // Validate redemption data
-      let redemptionData;
-      try {
-        redemptionData = insertRedemptionSchema.parse({
-          ...req.body,
-          doctorId
-        });
-      } catch (error) {
-        if (error instanceof ZodError) {
-          const validationError = fromZodError(error);
-          return res.status(400).json({ message: validationError.message });
-        }
-        throw error;
-      }
-
-      // Check if doctor has enough points
-      const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
-      if (availablePoints < redemptionData.points) {
-        return res.status(400).json({ message: "Insufficient points" });
-      }
-
-      // Create redemption record
-      const redemption = await storage.createRedemption(redemptionData);
-
-      // Update doctor's redeemed points
-      await storage.updateDoctor(doctor.id, {
-        redeemedPoints: doctor.redeemedPoints + redemptionData.points
-      });
-
-      res.status(201).json(redemption);
+      const result = await processPendingRedemptions();
+      res.json(result);
     } catch (error) {
-      res.status(500).json({ message: "Failed to process redemption" });
+      res.status(500).json({ message: "Failed to process redemptions", error: error });
     }
   });
+
+  // Route to check the status of a redemption
+  app.get("/api/redemptions/:id/status", isAuthenticated, async (req, res) => {
+    try {
+      const redemptionId = parseInt(req.params.id);
+      const redemption = await storage.getRedemption(redemptionId);
+
+      if (!redemption) {
+        return res.status(404).json({ message: "Redemption not found" });
+      }
+
+      // Check if user is authorized to view this redemption
+      if (req.user.role === "doctor") {
+        const doctor = await storage.getDoctorByUserId(req.user.id);
+        if (!doctor || redemption.doctorId !== doctor.id) {
+          return res.status(403).json({ message: "Not authorized to view this redemption" });
+        }
+      } else if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized to view redemptions" });
+      }
+
+      // If redemption has a payout ID and is not in a final state, check the latest status
+      if (redemption.payoutId && (redemption.status === "processed" || redemption.status === "pending")) {
+        try {
+          const payoutStatus = await checkPayoutStatus(redemption.payoutId);
+
+          // Update the redemption status if it has changed
+          if (payoutStatus.status !== redemption.payoutStatus) {
+            await storage.updateRedemption(redemption.id, {
+              payoutStatus: payoutStatus.status,
+              status: payoutStatus.status === "processed" ? "completed" : redemption.status,
+              updatedAt: new Date()
+            });
+
+            redemption.payoutStatus = payoutStatus.status;
+            redemption.status = payoutStatus.status === "processed" ? "completed" : redemption.status;
+          }
+        } catch (error) {
+          console.error("Error checking payout status:", error);
+          // Don't fail the request if status check fails
+        }
+      }
+
+      res.json(redemption);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check redemption status" });
+    }
+  });
+  app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
+  try {
+    const doctorId = parseInt(req.params.id);
+    const doctor = await storage.getDoctor(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    // Check permissions
+    if (doctor.userId !== req.user.id) {
+      return res.status(403).json({ message: "Forbidden: Not your profile" });
+    }
+
+    // Validate redemption data
+    let redemptionData;
+    try {
+      redemptionData = insertRedemptionSchema.parse({
+        ...req.body,
+        doctorId
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      throw error;
+    }
+
+    // Check if doctor has enough points
+    const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
+    if (availablePoints < redemptionData.points) {
+      return res.status(400).json({ message: "Insufficient points" });
+    }
+
+    // Create redemption record - store the redemptionDetails directly as a string
+    // No need to format or JSON.stringify as we'll handle parsing in the processor
+    const redemption = await storage.createRedemption({
+      ...redemptionData,
+      status: 'pending'
+    });
+
+    // Update doctor's redeemed points
+    await storage.updateDoctor(doctor.id, {
+      redeemedPoints: doctor.redeemedPoints + redemptionData.points
+    });
+
+    res.status(201).json(redemption);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to process redemption" });
+  }
+});
 
   // Send reminder email to a doctor for a specific survey
   app.post("/api/doctors/:id/send-reminder", hasRole(["client", "admin"]), async (req, res) => {
@@ -937,42 +1049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get current doctor's survey responses (complete and partial)
-  app.get("/api/doctors/current/responses", hasRole(["doctor"]), async (req, res) => {
-    try {
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
 
-      const doctor = await storage.getDoctorByUserId(req.user.id);
-      if (!doctor) {
-        return res.status(404).json({ message: "Doctor not found" });
-      }
-
-      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
-      if (!responses) {
-        return res.json([]);
-      }
-
-      // Enhance responses with question responses
-      const enhancedResponses = await Promise.all(responses.map(async (response) => {
-        const questionResponses = await storage.getQuestionResponsesByDoctorSurveyResponseId(response.id);
-
-        // Get survey details
-        const survey = await storage.getSurvey(response.surveyId);
-
-        return {
-          ...response,
-          survey: survey || undefined,
-          questionResponses: questionResponses || []
-        };
-      }));
-
-      res.json(enhancedResponses);
-    } catch (error) {
-      console.error("Error getting doctor responses:", error);
-      res.status(500).json({ message: "Failed to fetch doctor responses" });
-    }
-  });
 
   const httpServer = createServer(app);
   return httpServer;

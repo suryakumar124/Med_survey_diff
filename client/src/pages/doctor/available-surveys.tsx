@@ -33,7 +33,7 @@ export default function DoctorAvailableSurveys() {
   const { data: surveys, isLoading: surveysLoading } = useQuery<ExtendedSurvey[]>({
     queryKey: ["/api/surveys"],
   });
-  
+
   // Fetch doctor's responses to determine partial responses
   const { data: responses, isLoading: responsesLoading } = useQuery({
     queryKey: ["/api/doctors/current/responses"],
@@ -45,17 +45,13 @@ export default function DoctorAvailableSurveys() {
   });
 
   // Filter surveys that haven't been completed (including both active and draft)
-  const availableSurveys = surveys?.filter(survey => 
-    (survey.status === "active" || survey.status === "draft") && 
-    (!survey.completedCount || survey.completedCount === 0)
-  ) || [];
+  const availableSurveys = surveys || [];
 
   // Filter by search term
-  const filteredSurveys = availableSurveys.filter(survey => 
+  const filteredSurveys = searchTerm.trim() === "" ? availableSurveys : availableSurveys.filter(survey =>
     survey.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (survey.description && survey.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
-
   // Helper function to safely get date 
   const getDateValue = (dateValue: Date | string | null): number => {
     if (!dateValue) return 0;
@@ -83,13 +79,13 @@ export default function DoctorAvailableSurveys() {
   // Check if a survey has a partial response
   const hasPartialResponse = (surveyId: number) => {
     if (!responses) return false;
-    return responses.some((response: any) => 
+    return responses.some((response: any) =>
       response.surveyId === surveyId && !response.completed
     );
   };
-  
+
   const isLoading = surveysLoading || responsesLoading;
-  
+
   return (
     <MainLayout pageTitle="Available Surveys" pageDescription="Surveys available for you to complete">
       {isLoading ? (
@@ -133,11 +129,11 @@ export default function DoctorAvailableSurveys() {
               </div>
             </CardContent>
           </Card>
-          
+
           {sortedSurveys.length > 0 ? (
             <div className="grid grid-cols-1 gap-6">
               {sortedSurveys.map((survey) => (
-                <SurveyCard 
+                <SurveyCard
                   key={survey.id}
                   survey={survey}
                   userRole="doctor"
@@ -152,8 +148,8 @@ export default function DoctorAvailableSurveys() {
                   <Filter className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No surveys found</h3>
                   <p className="text-gray-500">
-                    {searchTerm 
-                      ? "No surveys match your search criteria. Try adjusting your filters." 
+                    {searchTerm
+                      ? "No surveys match your search criteria. Try adjusting your filters."
                       : "There are no available surveys at the moment. Check back later."}
                   </p>
                 </div>

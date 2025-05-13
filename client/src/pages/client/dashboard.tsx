@@ -96,7 +96,7 @@ export default function ClientDashboard() {
       icon: "doctors"
     },
     {
-      title: "Completed Surveys",
+      title: "Attempts Completed",
       value: completedSurveys,
       change: 5,
       icon: "completed"

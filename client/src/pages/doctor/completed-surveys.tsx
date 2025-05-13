@@ -1,7 +1,6 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Survey, DoctorSurveyResponse } from "@shared/schema";
 import { Loader2, Search, CheckCircle, Clock, Award } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -15,41 +14,61 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
-interface CompletedSurvey extends Survey {
-  completedAt?: string;
-  pointsEarned?: number;
+// Updated interface for the new response type
+interface Survey {
+  id: number;
+  clientId: number;
+  title: string;
+  description: string;
+  points: number;
+  estimatedTime: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface DoctorSurveyResponse {
+  id: number;
+  doctorId: number;
+  surveyId: number;
+  completed: boolean;
+  pointsEarned: number;
+  startedAt: string;
+  completedAt: string;
+  survey: Survey;
+  questionResponses: any[];
 }
 
 export default function DoctorCompletedSurveys() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("newest");
 
-  // Fetch completed surveys
-  const { data: surveys, isLoading } = useQuery<CompletedSurvey[]>({
-    queryKey: ["/api/surveys"],
+  // Fetch completed survey responses
+  const { data: surveyResponses, isLoading } = useQuery<DoctorSurveyResponse[]>({
+    queryKey: ["/api/doctors/current/responses"],
   });
 
-  // Filter completed surveys
-  const completedSurveys = surveys?.filter(survey => 
-    survey.completedCount && survey.completedCount > 0
+  // Filter completed survey responses
+  const completedSurveyResponses = surveyResponses?.filter(response => 
+    response.completed === true
   ) || [];
 
   // Filter by search term
-  const filteredSurveys = completedSurveys.filter(survey => 
-    survey.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (survey.description && survey.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredSurveyResponses = completedSurveyResponses.filter(response => 
+    response.survey.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (response.survey.description && response.survey.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Sort surveys
-  const sortedSurveys = [...filteredSurveys].sort((a, b) => {
+  // Sort survey responses
+  const sortedSurveyResponses = [...filteredSurveyResponses].sort((a, b) => {
     if (sortBy === "newest") {
-      return new Date(b.completedAt || b.createdAt).getTime() - new Date(a.completedAt || a.createdAt).getTime();
+      return new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime();
     } else if (sortBy === "oldest") {
-      return new Date(a.completedAt || a.createdAt).getTime() - new Date(b.completedAt || b.createdAt).getTime();
+      return new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime();
     } else if (sortBy === "points-high") {
-      return (b.pointsEarned || b.points) - (a.pointsEarned || a.points);
+      return b.pointsEarned - a.pointsEarned;
     } else if (sortBy === "points-low") {
-      return (a.pointsEarned || a.points) - (b.pointsEarned || b.points);
+      return a.pointsEarned - b.pointsEarned;
     }
     return 0;
   });
@@ -104,10 +123,10 @@ export default function DoctorCompletedSurveys() {
             </CardContent>
           </Card>
           
-          {sortedSurveys.length > 0 ? (
+          {sortedSurveyResponses.length > 0 ? (
             <div className="grid grid-cols-1 gap-6">
-              {sortedSurveys.map((survey) => (
-                <Card key={survey.id} className="overflow-hidden">
+              {sortedSurveyResponses.map((response) => (
+                <Card key={response.id} className="overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                       <div className="flex items-start space-x-4">
@@ -115,18 +134,18 @@ export default function DoctorCompletedSurveys() {
                           <CheckCircle className="h-6 w-6 text-green-600" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-medium">{survey.title}</h3>
+                          <h3 className="text-lg font-medium">{response.survey.title}</h3>
                           <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-                            {survey.description || "No description provided."}
+                            {response.survey.description || "No description provided."}
                           </p>
                           <div className="flex flex-wrap items-center gap-3 mt-3">
                             <div className="flex items-center text-sm text-gray-600">
                               <Award className="h-4 w-4 mr-1 text-amber-500" />
-                              <span>{survey.pointsEarned || survey.points} points earned</span>
+                              <span>{response.pointsEarned} points earned</span>
                             </div>
                             <div className="flex items-center text-sm text-gray-600">
                               <Clock className="h-4 w-4 mr-1 text-gray-500" />
-                              <span>Completed on {formatDate(survey.completedAt || survey.updatedAt)}</span>
+                              <span>Completed on {formatDate(response.completedAt)}</span>
                             </div>
                             <Badge variant="outline" className="text-green-600">
                               Completed

@@ -9,12 +9,43 @@ import { Survey } from "@shared/schema";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 
+// Interface for the survey object within responses
+interface SurveyData {
+  id: number;
+  clientId: number;
+  title: string;
+  description: string;
+  points: number;
+  estimatedTime: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Interface for doctor survey responses
+interface DoctorSurveyResponse {
+  id: number;
+  doctorId: number;
+  surveyId: number;
+  completed: boolean;
+  pointsEarned: number;
+  startedAt: string;
+  completedAt: string;
+  survey: SurveyData;
+  questionResponses: any[];
+}
+
 export default function DoctorDashboard() {
   const { user } = useAuth();
 
   // Fetch available surveys
-  const { data: surveys, isLoading: surveysLoading } = useQuery<Survey[]>({
+  const { data: availableSurveys, isLoading: surveysLoading } = useQuery<Survey[]>({
     queryKey: ["/api/surveys"],
+  });
+
+  // Fetch completed survey responses
+  const { data: surveyResponses, isLoading: responsesLoading } = useQuery<DoctorSurveyResponse[]>({
+    queryKey: ["/api/doctors/current/responses"],
   });
 
   // Fetch points information
@@ -27,15 +58,17 @@ export default function DoctorDashboard() {
     enabled: !!user?.roleDetails?.id,
   });
 
-  const isLoading = surveysLoading || pointsLoading;
+  const isLoading = surveysLoading || pointsLoading || responsesLoading;
 
-  // Filter available and completed surveys
-  const availableSurveys = surveys?.filter(survey => 
-    survey.status === "active" && (!survey.completedCount || survey.completedCount === 0)
+  // Filter available surveys - excluding ones that are already completed
+  const activeAvailableSurveys = availableSurveys?.filter(survey => 
+    survey.status === "active" && 
+    !surveyResponses?.some(response => response.surveyId === survey.id && response.completed)
   ) || [];
   
-  const completedSurveys = surveys?.filter(survey => 
-    survey.completedCount && survey.completedCount > 0
+  // Filter completed survey responses
+  const completedSurveyResponses = surveyResponses?.filter(response => 
+    response.completed === true
   ) || [];
 
   // Stats data
@@ -77,9 +110,9 @@ export default function DoctorDashboard() {
                 <CardDescription>Surveys available for you to complete</CardDescription>
               </CardHeader>
               <CardContent>
-                {availableSurveys.length > 0 ? (
+                {activeAvailableSurveys.length > 0 ? (
                   <div className="space-y-4">
-                    {availableSurveys.slice(0, 3).map((survey) => (
+                    {activeAvailableSurveys.slice(0, 3).map((survey) => (
                       <div key={survey.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                         <div className="flex items-center">
                           <div className="p-2 bg-primary-100 rounded-full mr-4">
@@ -108,7 +141,7 @@ export default function DoctorDashboard() {
                   </div>
                 )}
               </CardContent>
-              {availableSurveys.length > 3 && (
+              {activeAvailableSurveys.length > 3 && (
                 <CardFooter className="flex justify-center pt-2 pb-4">
                   <Link href="/doctor/available-surveys">
                     <Button variant="ghost">
@@ -127,18 +160,18 @@ export default function DoctorDashboard() {
                 <CardDescription>Surveys you have already completed</CardDescription>
               </CardHeader>
               <CardContent>
-                {completedSurveys.length > 0 ? (
+                {completedSurveyResponses.length > 0 ? (
                   <div className="space-y-4">
-                    {completedSurveys.slice(0, 3).map((survey) => (
-                      <div key={survey.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                    {completedSurveyResponses.slice(0, 3).map((response) => (
+                      <div key={response.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                         <div className="flex items-center">
                           <div className="p-2 bg-green-100 rounded-full mr-4">
                             <CheckCircle className="h-5 w-5 text-green-600" />
                           </div>
                           <div>
-                            <h3 className="font-medium">{survey.title}</h3>
+                            <h3 className="font-medium">{response.survey.title}</h3>
                             <div className="flex items-center space-x-2 text-sm text-gray-500">
-                              <span>{survey.points} points earned</span>
+                              <span>{response.pointsEarned} points earned</span>
                             </div>
                           </div>
                         </div>
@@ -152,7 +185,7 @@ export default function DoctorDashboard() {
                   </div>
                 )}
               </CardContent>
-              {completedSurveys.length > 3 && (
+              {completedSurveyResponses.length > 3 && (
                 <CardFooter className="flex justify-center pt-2 pb-4">
                   <Link href="/doctor/completed-surveys">
                     <Button variant="ghost">
