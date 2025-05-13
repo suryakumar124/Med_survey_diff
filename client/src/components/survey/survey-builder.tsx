@@ -113,51 +113,49 @@ export function SurveyBuilder({ survey, questions, onSave }: SurveyBuilderProps)
     setSelectedNode(node);
   }, []);
 
-  // Handle saving the updated flow
   const handleSave = () => {
-    // Convert nodes and edges back to questions with conditional logic
-    const updatedQuestions = questions.map(q => {
-      // Find the corresponding node
-      const node = nodes.find(n => n.id === q.id.toString());
-      if (!node) return q;
+  // Convert nodes and edges back to questions with conditional logic
+  const updatedQuestions = questions.map(q => {
+    // Find the corresponding node
+    const node = nodes.find(n => n.id === q.id.toString());
+    if (!node) return q;
+    
+    // Find all outgoing edges from this node
+    const nodeEdges = edges.filter(e => e.source === node.id);
+    
+    // Build conditional logic based on edges
+    let conditionalLogic = null;
+    
+    if (nodeEdges.length > 0) {
+      conditionalLogic = {};
       
-      // Find all outgoing edges from this node
-      const nodeEdges = edges.filter(e => e.source === node.id);
-      
-      // Build conditional logic based on edges
-      if (nodeEdges.length > 0) {
-        const conditionalLogic: any = {};
-        
-        // Find default edge (no condition)
-        const defaultEdge = nodeEdges.find(e => e.label === 'Default');
-        if (defaultEdge) {
-          conditionalLogic.nextQuestionId = parseInt(defaultEdge.target);
-        }
-        
-        // Find branch edges
-        const branchEdges = nodeEdges.filter(e => e.label && e.label.startsWith('If:'));
-        if (branchEdges.length > 0) {
-          conditionalLogic.branches = {};
-          branchEdges.forEach(edge => {
-            const option = edge.label?.replace('If: ', '');
-            if (option) {
-              conditionalLogic.branches[option] = parseInt(edge.target);
-            }
-          });
-        }
-        
-        return {
-          ...q,
-          conditionalLogic: JSON.stringify(conditionalLogic)
-        };
+      // Find default edge (no condition)
+      const defaultEdge = nodeEdges.find(e => e.label === 'Default');
+      if (defaultEdge) {
+        conditionalLogic.nextQuestionId = parseInt(defaultEdge.target);
       }
       
-      return q;
-    });
+      // Find branch edges
+      const branchEdges = nodeEdges.filter(e => e.label && e.label.startsWith('If:'));
+      if (branchEdges.length > 0) {
+        conditionalLogic.branches = {};
+        branchEdges.forEach(edge => {
+          const option = edge.label?.replace('If: ', '');
+          if (option) {
+            conditionalLogic.branches[option] = parseInt(edge.target);
+          }
+        });
+      }
+    }
     
-    onSave(updatedQuestions);
-  };
-
+    return {
+      ...q,
+      conditionalLogic: conditionalLogic ? JSON.stringify(conditionalLogic) : null
+    };
+  });
+  
+  onSave(updatedQuestions);
+};
   return (
     <div className="h-[600px] w-full border rounded-md">
       <ReactFlow

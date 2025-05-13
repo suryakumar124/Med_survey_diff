@@ -231,12 +231,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
         }
       } else if (req.user.role === "client") {
-         const client = await storage.getClientByUserId(req.user.id);
+        const client = await storage.getClientByUserId(req.user.id);
         if (client) {
           surveys = await storage.getSurveysByClientId(client.id);
         }
       } else if (req.user.role === "admin") {
-         if (req.query.clientId) {
+        if (req.query.clientId) {
           surveys = await storage.getSurveysByClientId(parseInt(req.query.clientId as string));
         } else {
           // Get all surveys from all clients
@@ -325,6 +325,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(survey);
     } catch (error) {
       res.status(500).json({ message: "Failed to create survey" });
+    }
+  });
+
+  app.put("/api/surveys/:id", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      // Check permissions for client users
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+
+      // Update survey
+      const updatedSurvey = await storage.updateSurvey(surveyId, req.body);
+      res.json(updatedSurvey);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update survey" });
     }
   });
 
@@ -463,11 +487,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to create survey question" });
     }
   });
-
-
-  // Survey Response Routes
-
-  // Add a new endpoint to update survey questions flow
+  // Add this endpoint to update survey questions flow
   app.put("/api/surveys/:id/questions/flow", hasRole(["client", "admin"]), async (req, res) => {
     try {
       const surveyId = parseInt(req.params.id);
@@ -486,28 +506,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Update each question with its conditional logic
+      // Validate request body
       const updatedQuestions = req.body;
       if (!Array.isArray(updatedQuestions)) {
-        return res.status(400).json({ message: "Invalid request format" });
+        return res.status(400).json({ message: "Invalid request format - expected array" });
       }
 
+      // Update each question with its conditional logic
       for (const question of updatedQuestions) {
-        // Only update the conditional logic, not the entire question
-        await storage.updateSurveyQuestion(question.id, {
-          conditionalLogic: question.conditionalLogic
-        });
+        if (!question.id) {
+          console.error("Missing question ID in update request");
+          continue;
+        }
+
+        try {
+          await storage.updateSurveyQuestion(question.id, {
+            conditionalLogic: question.conditionalLogic
+          });
+        } catch (error) {
+          console.error(`Error updating question ${question.id}:`, error);
+          // Continue with other questions instead of failing completely
+        }
       }
 
       // Get all questions for the survey to return
       const questions = await storage.getSurveyQuestionsBySurveyId(surveyId);
-
       res.status(200).json(questions);
     } catch (error) {
       console.error("Error updating survey flow:", error);
-      res.status(500).json({ message: "Failed to update survey flow" });
+      res.status(500).json({
+        message: "Failed to update survey flow",
+        error: error.message
+      });
     }
   });
+
+  // Survey Response Routes
+  app.put("/api/surveys/:id/questions/:questionId", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const questionId = parseInt(req.params.questionId);
+
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      // Check if question exists and belongs to this survey
+      const question = await storage.getSurveyQuestion(questionId);
+      if (!question || question.surveyId !== surveyId) {
+        return res.status(404).json({ message: "Question not found" });
+      }
+
+      // Check permissions for client users
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+
+      // Update question
+      const updatedQuestion = await storage.updateSurveyQuestion(questionId, req.body);
+      res.json(updatedQuestion);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update question" });
+    }
+  });
+
+  // Delete a survey question
+  app.delete("/api/surveys/:id/questions/:questionId", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const questionId = parseInt(req.params.questionId);
+
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      // Check if question exists and belongs to this survey
+      const question = await storage.getSurveyQuestion(questionId);
+      if (!question || question.surveyId !== surveyId) {
+        return res.status(404).json({ message: "Question not found" });
+      }
+
+      // Check permissions for client users
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+
+      // Delete question
+      await storage.deleteSurveyQuestion(questionId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete question" });
+    }
+  });
+  
   // Save partial survey response (auto-save)
   app.post("/api/surveys/:id/partial-responses", hasRole(["doctor"]), async (req, res) => {
     try {
@@ -681,7 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const doctorId = parseInt(req.params.id);
       const doctor = await storage.getDoctor(doctorId);
-      console.log("doctor" , doctor)
+      console.log("doctor", doctor)
       if (!doctor) {
         return res.status(404).json({ message: "Doctor not found" });
       }
@@ -859,56 +958,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
-  try {
-    const doctorId = parseInt(req.params.id);
-    const doctor = await storage.getDoctor(doctorId);
-    if (!doctor) {
-      return res.status(404).json({ message: "Doctor not found" });
-    }
-
-    // Check permissions
-    if (doctor.userId !== req.user.id) {
-      return res.status(403).json({ message: "Forbidden: Not your profile" });
-    }
-
-    // Validate redemption data
-    let redemptionData;
     try {
-      redemptionData = insertRedemptionSchema.parse({
-        ...req.body,
-        doctorId
-      });
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const validationError = fromZodError(error);
-        return res.status(400).json({ message: validationError.message });
+      const doctorId = parseInt(req.params.id);
+      const doctor = await storage.getDoctor(doctorId);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
       }
-      throw error;
+
+      // Check permissions
+      if (doctor.userId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden: Not your profile" });
+      }
+
+      // Validate redemption data
+      let redemptionData;
+      try {
+        redemptionData = insertRedemptionSchema.parse({
+          ...req.body,
+          doctorId
+        });
+      } catch (error) {
+        if (error instanceof ZodError) {
+          const validationError = fromZodError(error);
+          return res.status(400).json({ message: validationError.message });
+        }
+        throw error;
+      }
+
+      // Check if doctor has enough points
+      const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
+      if (availablePoints < redemptionData.points) {
+        return res.status(400).json({ message: "Insufficient points" });
+      }
+
+      // Create redemption record - store the redemptionDetails directly as a string
+      // No need to format or JSON.stringify as we'll handle parsing in the processor
+      const redemption = await storage.createRedemption({
+        ...redemptionData,
+        status: 'pending'
+      });
+
+      // Update doctor's redeemed points
+      await storage.updateDoctor(doctor.id, {
+        redeemedPoints: doctor.redeemedPoints + redemptionData.points
+      });
+
+      res.status(201).json(redemption);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process redemption" });
     }
-
-    // Check if doctor has enough points
-    const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
-    if (availablePoints < redemptionData.points) {
-      return res.status(400).json({ message: "Insufficient points" });
-    }
-
-    // Create redemption record - store the redemptionDetails directly as a string
-    // No need to format or JSON.stringify as we'll handle parsing in the processor
-    const redemption = await storage.createRedemption({
-      ...redemptionData,
-      status: 'pending'
-    });
-
-    // Update doctor's redeemed points
-    await storage.updateDoctor(doctor.id, {
-      redeemedPoints: doctor.redeemedPoints + redemptionData.points
-    });
-
-    res.status(201).json(redemption);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to process redemption" });
-  }
-});
+  });
 
   // Send reminder email to a doctor for a specific survey
   app.post("/api/doctors/:id/send-reminder", hasRole(["client", "admin"]), async (req, res) => {

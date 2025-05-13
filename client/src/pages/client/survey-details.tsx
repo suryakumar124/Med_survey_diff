@@ -21,6 +21,7 @@ import { Loader2, Plus, Clock, Award, FileText, BarChart2, Users, PieChart } fro
 import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { SurveyBuilder } from "@/components/survey/survey-builder";
+import { useEffect } from "react";
 
 // Create question schema
 const createQuestionSchema = z.object({
@@ -38,6 +39,8 @@ export default function SurveyDetails() {
   const surveyId = parseInt(id as string);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
 
   // Fetch survey details
   const { data: survey, isLoading: surveyLoading } = useQuery<Survey>({
@@ -72,6 +75,8 @@ export default function SurveyDetails() {
     enabled: !!surveyId && !isNaN(surveyId) && activeTab === "analytics",
   });
 
+  const [isQuestionEditDialogOpen, setIsQuestionEditDialogOpen] = useState(false);
+  const [questionToEdit, setQuestionToEdit] = useState<SurveyQuestion | null>(null);
   // Create question form
   const form = useForm<CreateQuestionData>({
     resolver: zodResolver(createQuestionSchema),
@@ -106,11 +111,89 @@ export default function SurveyDetails() {
       });
     },
   });
+  // After the createQuestionMutation (around line 139):
+  const updateQuestionMutation = useMutation({
+    mutationFn: async (data: Partial<SurveyQuestion>) => {
+      const res = await apiRequest("PUT", `/api/surveys/${surveyId}/questions/${data.id}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Question updated",
+        description: "Your question has been updated successfully",
+      });
+      setIsQuestionEditDialogOpen(false);
+      setQuestionToEdit(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/surveys", surveyId, "questions"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update question",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
-  // Add this mutation for updating the question flow
+  const deleteQuestionMutation = useMutation({
+    mutationFn: async (questionId: number) => {
+      const res = await apiRequest("DELETE", `/api/surveys/${surveyId}/questions/${questionId}`, null);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Question deleted",
+        description: "The question has been removed from the survey",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/surveys", surveyId, "questions"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to delete question",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Edit question handler function
+  const handleEditQuestion = (question: SurveyQuestion) => {
+    setQuestionToEdit(question);
+    form.reset({
+      questionText: question.questionText,
+      questionType: question.questionType as any,
+      options: question.options || "",
+      required: question.required,
+    });
+    setIsQuestionEditDialogOpen(true);
+  };
+
+  // Delete question handler function
+  const handleDeleteQuestion = (questionId: number) => {
+    if (confirm("Are you sure you want to delete this question? This action cannot be undone.")) {
+      deleteQuestionMutation.mutate(questionId);
+    }
+  };
+  // Line 121-138: Modify the updateQuestionsMutation for better error handling
   const updateQuestionsMutation = useMutation({
     mutationFn: async (updatedQuestions: SurveyQuestion[]) => {
-      const res = await apiRequest("PUT", `/api/surveys/${surveyId}/questions/flow`, updatedQuestions);
+      // Filter out any unnecessary data to keep the request payload clean
+      const simplifiedQuestions = updatedQuestions.map(q => ({
+        id: q.id,
+        conditionalLogic: q.conditionalLogic
+      }));
+
+      const res = await apiRequest(
+        "PUT",
+        `/api/surveys/${surveyId}/questions/flow`,
+        simplifiedQuestions
+      );
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to update survey flow: ${errorText}`);
+      }
+
       return await res.json();
     },
     onSuccess: () => {
@@ -121,8 +204,31 @@ export default function SurveyDetails() {
       queryClient.invalidateQueries({ queryKey: ["/api/surveys", surveyId, "questions"] });
     },
     onError: (error: Error) => {
+      console.error("Error updating survey flow:", error);
       toast({
         title: "Failed to update survey flow",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateSurveyMutation = useMutation({
+    mutationFn: async (data: Partial<Survey>) => {
+      const res = await apiRequest("PUT", `/api/surveys/${surveyId}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Survey updated",
+        description: "Your survey has been updated successfully",
+      });
+      setIsEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/surveys", surveyId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update survey",
         description: error.message,
         variant: "destructive",
       });
@@ -171,6 +277,18 @@ export default function SurveyDetails() {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  useEffect(() => {
+    if (isEditDialogOpen && survey) {
+      form.reset({
+        title: survey.title,
+        description: survey.description || "",
+        points: survey.points,
+        estimatedTime: survey.estimatedTime,
+        status: survey.status
+      });
+    }
+  }, [isEditDialogOpen, survey, form]);
 
   if (surveyLoading) {
     return (
@@ -276,7 +394,7 @@ export default function SurveyDetails() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline">Edit Survey</Button>
+                {/* <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Survey</Button> */}
               </CardFooter>
             </Card>
           </TabsContent>
@@ -414,6 +532,134 @@ export default function SurveyDetails() {
                   </Form>
                 </DialogContent>
               </Dialog>
+              <Dialog open={isQuestionEditDialogOpen} onOpenChange={setIsQuestionEditDialogOpen}>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>Edit Question</DialogTitle>
+                    <DialogDescription>
+                      Update this survey question.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit((data) => {
+                      if (questionToEdit) {
+                        updateQuestionMutation.mutate({
+                          id: questionToEdit.id,
+                          ...data,
+                        });
+                      }
+                    })} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="questionText"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Question Text</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Enter your question" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="questionType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Question Type</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select question type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="text">Text</SelectItem>
+                                <SelectItem value="scale">Scale</SelectItem>
+                                <SelectItem value="mcq">Multiple Choice</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              The type of response for this question.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {(form.watch("questionType") === "mcq") && (
+                        <FormField
+                          control={form.control}
+                          name="options"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Options</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Enter options, one per line"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Enter one option per line.
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      <FormField
+                        control={form.control}
+                        name="required"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <input
+                                type="checkbox"
+                                checked={field.value}
+                                onChange={field.onChange}
+                                className="form-checkbox h-4 w-4 text-primary rounded"
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel>Required</FormLabel>
+                              <FormDescription>
+                                Make this question mandatory for submission.
+                              </FormDescription>
+                            </div>
+                          </FormItem>
+                        )}
+                      />
+
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsQuestionEditDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit" disabled={updateQuestionMutation.isPending}>
+                          {updateQuestionMutation.isPending ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Updating...
+                            </>
+                          ) : (
+                            "Update Question"
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
             </div>
 
             {questionsLoading ? (
@@ -468,8 +714,15 @@ export default function SurveyDetails() {
                       ) : null}
                     </CardContent>
                     <CardFooter className="flex justify-end space-x-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">Delete</Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEditQuestion(question)}>Edit</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleDeleteQuestion(question.id)}
+                      >
+                        Delete
+                      </Button>
                     </CardFooter>
                   </Card>
                 ))}
@@ -709,6 +962,148 @@ export default function SurveyDetails() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Edit Survey Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="sm:max-w-[600px]">
+              <DialogHeader>
+                <DialogTitle>Edit Survey</DialogTitle>
+                <DialogDescription>
+                  Update survey details
+                </DialogDescription>
+              </DialogHeader>
+              {survey && (
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit((data) => {
+                    updateSurveyMutation.mutate({
+                      id: surveyId,
+                      ...data
+                    });
+                  })} className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Survey Title</FormLabel>
+                          <FormControl>
+                            <Input defaultValue={survey.title} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              defaultValue={survey.description || ""}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="points"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Points</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                defaultValue={survey.points}
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="estimatedTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Estimated Time (minutes)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                defaultValue={survey.estimatedTime}
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={survey.status}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="closed">Closed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Set as Draft to continue editing or Active to publish the survey.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <DialogFooter>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsEditDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={updateSurveyMutation.isPending}>
+                        {updateSurveyMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          "Update Survey"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              )}
+            </DialogContent>
+          </Dialog>
         </Tabs>
       </div>
     </MainLayout>

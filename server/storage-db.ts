@@ -57,6 +57,8 @@ export class DatabaseStorage implements IStorage {
     return newUser;
   }
 
+
+
   async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
     const [updatedUser] = await db
       .update(users)
@@ -381,6 +383,13 @@ export class DatabaseStorage implements IStorage {
       .where(eq(questionResponses.id, id))
       .returning();
     return updatedResponse;
+  }
+
+  async deleteSurveyQuestion(id: number): Promise<boolean> {
+    await db
+      .delete(surveyQuestions)
+      .where(eq(surveyQuestions.id, id));
+    return true;
   }
 
   async getQuestionResponsesByDoctorSurveyResponseId(doctorSurveyResponseId: number): Promise<QuestionResponse[]> {
