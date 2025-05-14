@@ -30,6 +30,7 @@ import DoctorSurveyDetails from "@/pages/doctor/survey-details";
 import DoctorCompletedSurveys from "@/pages/doctor/completed-surveys";
 import DoctorPoints from "@/pages/doctor/points";
 import DoctorProfile from "@/pages/doctor/profile";
+import RepresentativeDetails from "@/pages/client/representative-details";
 
 function Router() {
   return (
@@ -45,6 +46,7 @@ function Router() {
       <ProtectedRoute path="/client/doctors/:id" component={DoctorDetails} />
       <ProtectedRoute path="/client/representatives" component={ClientRepresentatives} />
       <ProtectedRoute path="/client/analytics" component={ClientAnalytics} />
+      <ProtectedRoute path="/client/representatives/:id" component={RepresentativeDetails} />
 
       {/* Representative Routes */}
       <ProtectedRoute path="/rep/dashboard" component={RepDashboard} />
@@ -58,6 +60,7 @@ function Router() {
       <ProtectedRoute path="/doctor/completed-surveys" component={DoctorCompletedSurveys} />
       <ProtectedRoute path="/doctor/points" component={DoctorPoints} />
       <ProtectedRoute path="/doctor/profile" component={DoctorProfile} />
+    
 
       {/* Fallback to 404 */}
       <Route component={NotFound} />

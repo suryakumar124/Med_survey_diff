@@ -199,7 +199,7 @@ export default function RepDashboard() {
 
             {/* Recent Activity */}
             <div className="md:col-span-1">
-              <RecentActivity activities={recentActivity} />
+              {/* <RecentActivity activities={recentActivity} /> */}
             </div>
           </div>
 

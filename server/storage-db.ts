@@ -139,19 +139,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDoctorsByRepId(repId: number): Promise<Doctor[]> {
-    const mappings = await db
-      .select()
-      .from(doctorRepMappings)
-      .where(eq(doctorRepMappings.representativeId, repId));
+  const mappings = await db
+    .select()
+    .from(doctorRepMappings)
+    .where(eq(doctorRepMappings.representativeId, repId));
 
-    if (mappings.length === 0) return [];
+  if (mappings.length === 0) return [];
 
-    const doctorIds = mappings.map(m => m.doctorId);
-    return db
-      .select()
-      .from(doctors)
-      .where(inArray(doctors.id, doctorIds));
-  }
+  const doctorIds = mappings.map(m => m.doctorId);
+  return db
+    .select()
+    .from(doctors)
+    .where(inArray(doctors.id, doctorIds));
+}
 
   // Client operations
   async getClient(id: number): Promise<Client | undefined> {
@@ -304,6 +304,7 @@ export class DatabaseStorage implements IStorage {
     return response;
   }
 
+  
   async createDoctorSurveyResponse(response: InsertDoctorSurveyResponse): Promise<DoctorSurveyResponse> {
     const [newResponse] = await db
       .insert(doctorSurveyResponses)

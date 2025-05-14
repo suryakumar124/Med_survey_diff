@@ -162,9 +162,9 @@ export default function AuthPage() {
                           registerForm.setValue("role", "doctor");
                         }}
                       >
-                        Doctor
+                        as Doctor
                       </Button>
-                      <Button
+                      {/* <Button
                         type="button"
                         variant={role === "rep" ? "default" : "outline"}
                         onClick={() => {
@@ -183,7 +183,7 @@ export default function AuthPage() {
                         }}
                       >
                         Client
-                      </Button>
+                      </Button> */}
                     </div>
                   </div>
 
@@ -194,7 +194,11 @@ export default function AuthPage() {
                       <FormItem>
                         <FormLabel>Full Name</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter your full name" {...field} />
+                          <Input
+                            placeholder="Enter your full name"
+                            value={field.value}
+                            onChange={(e) => registerForm.setValue('name', e.target.value, { shouldValidate: true })}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -301,9 +305,9 @@ export default function AuthPage() {
                         <FormItem>
                           <FormLabel>Client ID</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              placeholder="Enter client ID" 
+                            <Input
+                              type="number"
+                              placeholder="Enter client ID"
                               onChange={e => field.onChange(parseInt(e.target.value) || 0)}
                               value={field.value}
                             />

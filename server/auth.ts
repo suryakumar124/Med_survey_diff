@@ -124,7 +124,7 @@ export function setupAuth(app: Express) {
           userId: user.id,
           specialty: req.body.specialty || null,
         });
-        
+
         // Associate doctor with client if clientId is provided
         if (req.body.clientId) {
           const clientId = parseInt(req.body.clientId);
@@ -137,7 +137,7 @@ export function setupAuth(app: Express) {
             }
           }
         }
-        
+
         // Associate doctor with representative if repId is provided
         if (req.body.repId) {
           const repId = parseInt(req.body.repId);
@@ -169,6 +169,7 @@ export function setupAuth(app: Express) {
       req.login(user, (err) => {
         if (err) return next(err);
         // Return user without password
+
         const { password, ...userWithoutPassword } = user;
         res.status(201).json(userWithoutPassword);
       });
@@ -178,31 +179,53 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    try {
-      // Validate login data
-      loginSchema.parse(req.body);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const validationError = fromZodError(error);
-        return res.status(400).json({ message: validationError.message });
-      }
-      return next(error);
+  try {
+    // Validate login data
+    loginSchema.parse(req.body);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      const validationError = fromZodError(error);
+      return res.status(400).json({ message: validationError.message });
     }
+    return next(error);
+  }
 
-    passport.authenticate("local", (err: Error, user: User, info: any) => {
-      if (err) return next(err);
-      if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
-      }
-      req.login(user, (err) => {
-        if (err) return next(err);
-        // Return user without password
-        const { password, ...userWithoutPassword } = user;
-        return res.status(200).json(userWithoutPassword);
+  passport.authenticate("local", async (err: Error, user: User, info: any) => {
+    if (err) return next(err);
+    if (!user) {
+      return res.status(401).json({ message: info?.message || "Invalid credentials" });
+    }
+    
+    // Need to wrap req.login in a promise since it's callback-based
+    const loginPromise = new Promise<void>((resolve, reject) => {
+      req.login(user, (loginErr) => {
+        if (loginErr) reject(loginErr);
+        else resolve();
       });
-    })(req, res, next);
-  });
+    });
 
+    try {
+      await loginPromise;
+      
+      // Update user status to active if doctor role and not already active
+      if (user.role === 'doctor' && user.status !== 'active') {
+        try {
+          await storage.updateUser(user.id, { status: 'active' });
+          user.status = 'active';
+        } catch (updateError) {
+          console.error('Error updating doctor status:', updateError);
+          // Continue with login even if status update fails
+        }
+      }
+      
+      // Return user without password
+      const { password, ...userWithoutPassword } = user;
+      return res.status(200).json(userWithoutPassword);
+    } catch (loginError) {
+      return next(loginError);
+    }
+  })(req, res, next);
+});
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
@@ -214,13 +237,13 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    
+
     try {
       const userWithRole = await storage.getUserWithRole(req.user.id);
       if (!userWithRole) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Don't send the password to the client
       const { password, ...userWithoutPassword } = userWithRole;
       res.status(200).json(userWithoutPassword);

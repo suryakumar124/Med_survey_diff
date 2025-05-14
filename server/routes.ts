@@ -61,7 +61,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const client = await storage.getClientByUserId(req.user.id);
         if (client) {
           const representatives = await storage.getRepresentativesByClientId(client.id);
-          return res.json(representatives);
+          // Enrich representatives with user data
+          const enrichedRepresentatives = await Promise.all(
+            representatives.map(async (rep) => {
+              const user = await storage.getUser(rep.userId);
+              // Get assigned doctors count
+              const doctors = await storage.getDoctorsByRepId(rep.id);
+              return {
+                ...rep,
+                user,
+                doctorCount: doctors.length
+              };
+            })
+          );
+          return res.json(enrichedRepresentatives);
         }
       }
 
@@ -1226,6 +1239,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json({ message: "Doctor assigned successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to assign doctor" });
+    }
+  });
+
+  app.get("/api/representatives/:id/doctors", isAuthenticated, async (req, res) => {
+    try {
+      const repId = parseInt(req.params.id);
+      const rep = await storage.getRepresentative(repId);
+      if (!rep) {
+        return res.status(404).json({ message: "Representative not found" });
+      }
+
+      // Check permissions
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== rep.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your representative" });
+        }
+      }
+
+      const doctors = await storage.getDoctorsByRepId(repId);
+
+      // Enrich doctor data with user info
+      const enrichedDoctors = await Promise.all(
+        doctors.map(async (doctor) => {
+          const user = await storage.getUser(doctor.userId);
+          return { ...doctor, user };
+        })
+      );
+
+      res.json(enrichedDoctors);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch representative's doctors" });
     }
   });
 
