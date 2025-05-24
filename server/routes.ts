@@ -895,7 +895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check permissions - only the doctor themselves or clients/admins can view responses
       if (req.user.role === "doctor" && req.user.id !== doctor.userId) {
         return res.status(403).json({ message: "Forbidden: Not your responses" });
-      }
+      } 
 
       // Get all responses for this doctor
       const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctorId);

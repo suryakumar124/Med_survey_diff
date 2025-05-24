@@ -52,6 +52,7 @@ function Router() {
       <ProtectedRoute path="/rep/dashboard" component={RepDashboard} />
       <ProtectedRoute path="/rep/doctors" component={RepDoctors} />
       <ProtectedRoute path="/rep/onboarding" component={RepOnboarding} />
+      <ProtectedRoute path="/rep/doctors/:id" component={DoctorDetails} />
 
       {/* Doctor Routes */}
       <ProtectedRoute path="/doctor/dashboard" component={DoctorDashboard} />

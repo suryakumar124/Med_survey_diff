@@ -54,7 +54,7 @@ export function Sidebar({ className }: SidebarProps) {
   const repNavItems = [
     { href: "/rep/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/rep/doctors", label: "My Doctors", icon: Users },
-    { href: "/rep/onboarding", label: "Onboarding", icon: UserPlus },
+    // { href: "/rep/onboarding", label: "Onboarding", icon: UserPlus },
   ];
 
   const doctorNavItems = [

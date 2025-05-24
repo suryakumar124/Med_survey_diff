@@ -60,6 +60,11 @@ export default function DoctorDetails() {
     },
     enabled: !!doctorId && !isNaN(doctorId),
   });
+  const isRepRoute = location.pathname.startsWith('/rep/');
+
+  // Update the backLink to correctly redirect based on role
+  const backLink = isRepRoute ? "/rep/doctors" : "/client/doctors";
+  const backLinkLabel = `Back to Doctors`;
 
   if (doctorLoading) {
     return (
@@ -126,11 +131,11 @@ export default function DoctorDetails() {
   const completionRate = responses.length ? Math.round((completedSurveys.length / responses.length) * 100) : 0;
 
   return (
-    <MainLayout 
-      pageTitle={`${doctor.user.name}`} 
+    <MainLayout
+      pageTitle={`${doctor.user.name}`}
       pageDescription="Doctor profile and survey responses"
-      backLink="/client/doctors"
-      backLinkLabel="Back to Doctors"
+      backLink={backLink}
+      backLinkLabel={backLinkLabel}
     >
       <div className="space-y-6">
         {/* Doctor profile card */}
@@ -259,14 +264,14 @@ export default function DoctorDetails() {
                     <p className="text-2xl font-bold">{doctor.redeemedPoints}</p>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-sm">Available</span>
                     <span className="text-sm">Redeemed</span>
                   </div>
-                  <Progress 
-                    value={doctor.totalPoints > 0 ? (doctor.totalPoints - doctor.redeemedPoints) / doctor.totalPoints * 100 : 0} 
+                  <Progress
+                    value={doctor.totalPoints > 0 ? (doctor.totalPoints - doctor.redeemedPoints) / doctor.totalPoints * 100 : 0}
                     className="h-3"
                   />
                 </div>
@@ -320,8 +325,8 @@ export default function DoctorDetails() {
                             </TableCell>
                             <TableCell>{response.survey?.points || 0} points</TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => setActiveTab("responses")}
                                 data-response-id={response.id}
@@ -344,7 +349,7 @@ export default function DoctorDetails() {
                 <CardHeader>
                   <CardTitle>{response.survey?.title || "Survey Response"}</CardTitle>
                   <CardDescription>
-                    Completed {response.completedAt ? timeAgo(response.completedAt) : "N/A"} • 
+                    Completed {response.completedAt ? timeAgo(response.completedAt) : "N/A"} •
                     Earned {response.survey?.points || 0} points
                   </CardDescription>
                 </CardHeader>
@@ -404,7 +409,7 @@ export default function DoctorDetails() {
                             <TableCell>--</TableCell>
                           </TableRow>
                         ))}
-                        
+
                         {/* If there are no completed surveys */}
                         {responses.filter(r => r.completed).length === 0 && (
                           <TableRow>

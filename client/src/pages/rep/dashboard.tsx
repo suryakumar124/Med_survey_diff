@@ -122,10 +122,10 @@ export default function RepDashboard() {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Doctor Management</CardTitle>
                   <Link href="/rep/onboarding">
-                    <Button>
+                    {/* <Button>
                       <UserPlus className="mr-2 h-4 w-4" />
                       Add Doctor
-                    </Button>
+                    </Button> */}
                   </Link>
                 </CardHeader>
                 <CardContent>
@@ -223,7 +223,7 @@ export default function RepDashboard() {
                         </div>
                       </div>
                       <Link href={`/rep/doctors/${doctor.id}`}>
-                        <Button size="sm">Activate</Button>
+                        <Button size="sm">Send a reminder</Button>
                       </Link>
                     </div>
                   ))}
