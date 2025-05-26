@@ -2,7 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
-import { LoginData, insertSurveySchema, insertSurveyQuestionSchema, insertRedemptionSchema } from "@shared/schema";
+import {
+  LoginData, insertSurveySchema, insertSurveyQuestionSchema, insertRedemptionSchema,
+  insertSurveyTagSchema, insertSurveyRedemptionOptionSchema
+} from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { log } from './vite'
@@ -225,20 +228,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/surveys", isAuthenticated, async (req, res) => {
     try {
       let surveys = [];
+      const tagFilter = req.query.tags as string; // Comma-separated tags
 
       if (req.user.role === "doctor") {
         const doctor = await storage.getDoctorByUserId(req.user.id);
         if (doctor) {
-          // Get all surveys available to this doctor
           const allSurveys = await storage.getSurveysForDoctor(doctor.id);
-
-          // Get doctor's completed survey responses
           const doctorResponses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
           const completedSurveyIds = doctorResponses
             .filter(response => response.completed)
             .map(response => response.surveyId);
 
-          // Filter out surveys that have been completed
           surveys = allSurveys.filter(survey =>
             survey.status === "active" && !completedSurveyIds.includes(survey.id)
           );
@@ -252,7 +252,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (req.query.clientId) {
           surveys = await storage.getSurveysByClientId(parseInt(req.query.clientId as string));
         } else {
-          // Get all surveys from all clients
           const clients = await storage.getAllClients();
           for (const client of clients) {
             const clientSurveys = await storage.getSurveysByClientId(client.id);
@@ -266,21 +265,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Enrich survey data with response stats
+      // Enrich survey data with tags, redemption options and response stats
       const enrichedSurveys = await Promise.all(
         surveys.map(async (survey) => {
           const responses = await storage.getDoctorSurveyResponsesBySurveyId(survey.id);
           const completedResponses = responses.filter(response => response.completed);
+
+          // Get tags
+          const surveyTags = await storage.getSurveyTags(survey.id);
+          const tags = surveyTags.map(tag => tag.tag);
+
+          // Get redemption options
+          const redemptionOptions = await storage.getSurveyRedemptionOptions(survey.id);
+          const redemptionTypes = redemptionOptions
+            .filter(option => option.isActive)
+            .map(option => option.redemptionType);
+
           return {
             ...survey,
             responseCount: responses.length,
             completedCount: completedResponses.length,
-            completionRate: responses.length > 0 ? (completedResponses.length / responses.length) * 100 : 0
+            completionRate: responses.length > 0 ? (completedResponses.length / responses.length) * 100 : 0,
+            tags,
+            redemptionOptions: redemptionTypes
           };
         })
       );
 
-      res.json(enrichedSurveys);
+      // Apply tag filter if provided
+      let filteredSurveys = enrichedSurveys;
+      if (tagFilter) {
+        const requestedTags = tagFilter.split(',').map(tag => tag.trim().toLowerCase());
+        filteredSurveys = enrichedSurveys.filter(survey =>
+          survey.tags.some(tag => requestedTags.includes(tag.toLowerCase()))
+        );
+      }
+
+      res.json(filteredSurveys);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch surveys" });
     }
@@ -331,6 +352,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               throw error;
             }
+          }
+        }
+      }
+
+      // Create survey tags if provided
+      if (req.body.tags && Array.isArray(req.body.tags)) {
+        for (const tag of req.body.tags) {
+          if (tag.trim()) {
+            await storage.createSurveyTag({
+              surveyId: survey.id,
+              tag: tag.trim()
+            });
+          }
+        }
+      }
+
+      // Create redemption options if provided
+      if (req.body.redemptionTypes && Array.isArray(req.body.redemptionTypes)) {
+        for (const redemptionType of req.body.redemptionTypes) {
+          if (redemptionType.trim()) {
+            await storage.createSurveyRedemptionOption({
+              surveyId: survey.id,
+              redemptionType: redemptionType.trim(),
+              isActive: true
+            });
           }
         }
       }
@@ -410,6 +456,232 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch survey" });
+    }
+  });
+
+  // Survey Tags endpoints
+  // Get all available tags across surveys
+  app.get("/api/surveys/tags/all", isAuthenticated, async (req, res) => {
+    try {
+      let surveys = [];
+
+      // Get surveys based on user role
+      if (req.user.role === "doctor") {
+        const doctor = await storage.getDoctorByUserId(req.user.id);
+        if (doctor) {
+          surveys = await storage.getSurveysForDoctor(doctor.id);
+        }
+      } else if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (client) {
+          surveys = await storage.getSurveysByClientId(client.id);
+        }
+      } else if (req.user.role === "admin") {
+        const clients = await storage.getAllClients();
+        for (const client of clients) {
+          const clientSurveys = await storage.getSurveysByClientId(client.id);
+          surveys = [...surveys, ...clientSurveys];
+        }
+      } else if (req.user.role === "rep") {
+        const rep = await storage.getRepresentativeByUserId(req.user.id);
+        if (rep) {
+          surveys = await storage.getSurveysByClientId(rep.clientId);
+        }
+      }
+
+      // Get all unique tags from these surveys
+      const allTagsSet = new Set<string>();
+
+      for (const survey of surveys) {
+        const surveyTags = await storage.getSurveyTags(survey.id);
+        surveyTags.forEach(tag => allTagsSet.add(tag.tag));
+      }
+
+      // Convert to array and sort
+      const allTags = Array.from(allTagsSet).sort();
+
+      res.json(allTags);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch available tags" });
+    }
+  });
+
+  app.get("/api/surveys/:id/tags", isAuthenticated, async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      const tags = await storage.getSurveyTags(surveyId);
+      res.json(tags.map(tag => tag.tag));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch survey tags" });
+    }
+  });
+
+  app.post("/api/surveys/:id/tags", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      // Check permissions
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+
+      const { tags } = req.body;
+      if (!Array.isArray(tags)) {
+        return res.status(400).json({ message: "Tags must be an array" });
+      }
+
+      // Clear existing tags
+      const existingTags = await storage.getSurveyTags(surveyId);
+      for (const tag of existingTags) {
+        await storage.deleteSurveyTag(surveyId, tag.tag);
+      }
+
+      // Add new tags
+      const createdTags = [];
+      for (const tag of tags) {
+        if (tag.trim()) {
+          const createdTag = await storage.createSurveyTag({
+            surveyId,
+            tag: tag.trim()
+          });
+          createdTags.push(createdTag);
+        }
+      }
+
+      res.json(createdTags.map(tag => tag.tag));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update survey tags" });
+    }
+  });
+
+  // Survey Redemption Options endpoints
+  app.get("/api/surveys/:id/redemption-options", isAuthenticated, async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      const options = await storage.getSurveyRedemptionOptions(surveyId);
+      res.json(options.filter(option => option.isActive));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch redemption options" });
+    }
+  });
+
+  app.post("/api/surveys/:id/redemption-options", hasRole(["client", "admin"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      // Check permissions
+      if (req.user.role === "client") {
+        const client = await storage.getClientByUserId(req.user.id);
+        if (!client || client.id !== survey.clientId) {
+          return res.status(403).json({ message: "Forbidden: Not your survey" });
+        }
+      }
+
+      const { redemptionTypes } = req.body;
+      if (!Array.isArray(redemptionTypes)) {
+        return res.status(400).json({ message: "Redemption types must be an array" });
+      }
+
+      // Clear existing options
+      const existingOptions = await storage.getSurveyRedemptionOptions(surveyId);
+      for (const option of existingOptions) {
+        await storage.deleteSurveyRedemptionOption(surveyId, option.redemptionType);
+      }
+
+      // Add new options
+      const createdOptions = [];
+      for (const redemptionType of redemptionTypes) {
+        if (redemptionType.trim()) {
+          const createdOption = await storage.createSurveyRedemptionOption({
+            surveyId,
+            redemptionType: redemptionType.trim(),
+            isActive: true
+          });
+          createdOptions.push(createdOption);
+        }
+      }
+
+      res.json(createdOptions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update redemption options" });
+    }
+  });
+
+  // Survey-specific redemption endpoint
+  app.post("/api/surveys/:id/redeem", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+
+      // Check if doctor has completed this survey
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const completedResponse = responses.find(r => r.surveyId === surveyId && r.completed);
+      if (!completedResponse) {
+        return res.status(400).json({ message: "Survey not completed" });
+      }
+
+      // Check if already redeemed
+      const existingRedemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+      const alreadyRedeemed = existingRedemptions.find(r => r.surveyId === surveyId);
+      if (alreadyRedeemed) {
+        return res.status(400).json({ message: "Survey rewards already redeemed" });
+      }
+
+      // Validate redemption type is available for this survey
+      const availableOptions = await storage.getSurveyRedemptionOptions(surveyId);
+      const validTypes = availableOptions
+        .filter(option => option.isActive)
+        .map(option => option.redemptionType);
+
+      if (!validTypes.includes(req.body.redemptionType)) {
+        return res.status(400).json({
+          message: "Invalid redemption type for this survey",
+          availableTypes: validTypes
+        });
+      }
+
+      // Create redemption record
+      const redemption = await storage.createRedemption({
+        doctorId: doctor.id,
+        surveyId: surveyId,
+        points: survey.points,
+        redemptionType: req.body.redemptionType,
+        redemptionDetails: req.body.redemptionDetails,
+        status: 'pending'
+      });
+
+      res.status(201).json(redemption);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to redeem survey rewards" });
     }
   });
 
@@ -835,7 +1107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const redemptions = await storage.getRedemptionsByDoctorId(doctorId);
 
       // Calculate available points
-      const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
+      const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
 
       res.json({
         totalPoints: doctor.totalPoints,
@@ -895,7 +1167,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check permissions - only the doctor themselves or clients/admins can view responses
       if (req.user.role === "doctor" && req.user.id !== doctor.userId) {
         return res.status(403).json({ message: "Forbidden: Not your responses" });
-      } 
+      }
 
       // Get all responses for this doctor
       const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctorId);
@@ -1037,7 +1309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if doctor has enough points
-      const availablePoints = doctor.totalPoints + doctor.redeemedPoints;
+      const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
       if (availablePoints < redemptionData.points) {
         return res.status(400).json({ message: "Insufficient points" });
       }

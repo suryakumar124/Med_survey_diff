@@ -6,7 +6,9 @@ import {
   Redemption, InsertRedemption, UserWithRole,
   users, doctors, clients, representatives, surveys, surveyQuestions,
   doctorSurveyResponses, questionResponses, redemptions, doctorClientMappings,
-  doctorRepMappings
+  doctorRepMappings,
+  surveyTags, surveyRedemptionOptions, SurveyTag, InsertSurveyTag,
+  SurveyRedemptionOption, InsertSurveyRedemptionOption
 } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "./db";
@@ -139,19 +141,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDoctorsByRepId(repId: number): Promise<Doctor[]> {
-  const mappings = await db
-    .select()
-    .from(doctorRepMappings)
-    .where(eq(doctorRepMappings.representativeId, repId));
+    const mappings = await db
+      .select()
+      .from(doctorRepMappings)
+      .where(eq(doctorRepMappings.representativeId, repId));
 
-  if (mappings.length === 0) return [];
+    if (mappings.length === 0) return [];
 
-  const doctorIds = mappings.map(m => m.doctorId);
-  return db
-    .select()
-    .from(doctors)
-    .where(inArray(doctors.id, doctorIds));
-}
+    const doctorIds = mappings.map(m => m.doctorId);
+    return db
+      .select()
+      .from(doctors)
+      .where(inArray(doctors.id, doctorIds));
+  }
 
   // Client operations
   async getClient(id: number): Promise<Client | undefined> {
@@ -304,7 +306,7 @@ export class DatabaseStorage implements IStorage {
     return response;
   }
 
-  
+
   async createDoctorSurveyResponse(response: InsertDoctorSurveyResponse): Promise<DoctorSurveyResponse> {
     const [newResponse] = await db
       .insert(doctorSurveyResponses)
@@ -390,6 +392,58 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(surveyQuestions)
       .where(eq(surveyQuestions.id, id));
+    return true;
+  }
+
+  // Survey Tags operations
+  async getSurveyTags(surveyId: number): Promise<SurveyTag[]> {
+    return db
+      .select()
+      .from(surveyTags)
+      .where(eq(surveyTags.surveyId, surveyId));
+  }
+
+  async createSurveyTag(tag: InsertSurveyTag): Promise<SurveyTag> {
+    const [newTag] = await db
+      .insert(surveyTags)
+      .values(tag)
+      .returning();
+    return newTag;
+  }
+
+  async deleteSurveyTag(surveyId: number, tag: string): Promise<boolean> {
+    await db
+      .delete(surveyTags)
+      .where(and(
+        eq(surveyTags.surveyId, surveyId),
+        eq(surveyTags.tag, tag)
+      ));
+    return true;
+  }
+
+  // Survey Redemption Options operations
+  async getSurveyRedemptionOptions(surveyId: number): Promise<SurveyRedemptionOption[]> {
+    return db
+      .select()
+      .from(surveyRedemptionOptions)
+      .where(eq(surveyRedemptionOptions.surveyId, surveyId));
+  }
+
+  async createSurveyRedemptionOption(option: InsertSurveyRedemptionOption): Promise<SurveyRedemptionOption> {
+    const [newOption] = await db
+      .insert(surveyRedemptionOptions)
+      .values(option)
+      .returning();
+    return newOption;
+  }
+
+  async deleteSurveyRedemptionOption(surveyId: number, redemptionType: string): Promise<boolean> {
+    await db
+      .delete(surveyRedemptionOptions)
+      .where(and(
+        eq(surveyRedemptionOptions.surveyId, surveyId),
+        eq(surveyRedemptionOptions.redemptionType, redemptionType)
+      ));
     return true;
   }
 

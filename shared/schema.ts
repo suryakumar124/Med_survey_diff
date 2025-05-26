@@ -117,17 +117,33 @@ export const questionResponses = pgTable("question_responses", {
 export const redemptions = pgTable("redemptions", {
   id: serial("id").primaryKey(),
   doctorId: integer("doctor_id").notNull().references(() => doctors.id),
+  surveyId: integer("survey_id").notNull().references(() => surveys.id), // Add survey reference
   points: integer("points").notNull(),
-  redemptionType: text("redemption_type").notNull(), // upi, amazon, etc.
-  redemptionDetails: text("redemption_details").notNull(), // JSON string with details
-  status: text("status").notNull().default("pending"), // pending, processed, completed, failed
-  payoutId: text("payout_id"), // New field for payment gateway ID
-  payoutStatus: text("payout_status"), // New field for payment status
-  payoutResponse: text("payout_response"), // New field for payment response
-  failureReason: text("failure_reason"), // New field for failure reason
-  processedAt: timestamp("processed_at"), // New field for processing timestamp
+  redemptionType: text("redemption_type").notNull(),
+  redemptionDetails: text("redemption_details").notNull(),
+  status: text("status").notNull().default("pending"),
+  payoutId: text("payout_id"),
+  payoutStatus: text("payout_status"),
+  payoutResponse: text("payout_response"),
+  failureReason: text("failure_reason"),
+  processedAt: timestamp("processed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const surveyTags = pgTable("survey_tags", {
+  id: serial("id").primaryKey(),
+  surveyId: integer("survey_id").notNull().references(() => surveys.id),
+  tag: text("tag").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const surveyRedemptionOptions = pgTable("survey_redemption_options", {
+  id: serial("id").primaryKey(),
+  surveyId: integer("survey_id").notNull().references(() => surveys.id),
+  redemptionType: text("redemption_type").notNull(), // upi, amazon, etc.
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -186,6 +202,18 @@ export const insertRedemptionSchema = createInsertSchema(redemptions).omit({
   updatedAt: true,
 });
 
+export const insertSurveyTagSchema = createInsertSchema(surveyTags).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSurveyRedemptionOptionSchema = createInsertSchema(surveyRedemptionOptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+
+
 export const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
@@ -205,7 +233,13 @@ export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Representative = typeof representatives.$inferSelect;
 export type InsertRepresentative = z.infer<typeof insertRepresentativeSchema>;
 
-export type Survey = typeof surveys.$inferSelect;
+export type Survey = typeof surveys.$inferSelect & {
+  tags?: string[];
+  redemptionOptions?: string[];
+  responseCount?: number;
+  completedCount?: number;
+  completionRate?: number;
+};
 export type InsertSurvey = z.infer<typeof insertSurveySchema>;
 
 export type SurveyQuestion = typeof surveyQuestions.$inferSelect;
@@ -219,6 +253,17 @@ export type InsertQuestionResponse = z.infer<typeof insertQuestionResponseSchema
 
 export type Redemption = typeof redemptions.$inferSelect;
 export type InsertRedemption = z.infer<typeof insertRedemptionSchema>;
+
+export type SurveyTag = typeof surveyTags.$inferSelect;
+export type InsertSurveyTag = z.infer<typeof insertSurveyTagSchema>;
+
+export type SurveyRedemptionOption = typeof surveyRedemptionOptions.$inferSelect;
+export type InsertSurveyRedemptionOption = z.infer<typeof insertSurveyRedemptionOptionSchema>;
+
+export type SurveyWithTags = Survey & {
+  tags: string[];
+  redemptionOptions: string[];
+};
 
 // Extended types for API responses
 export type UserWithRole = User & {

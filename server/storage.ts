@@ -3,7 +3,8 @@ import {
   Representative, InsertRepresentative, Survey, InsertSurvey,
   SurveyQuestion, InsertSurveyQuestion, DoctorSurveyResponse,
   InsertDoctorSurveyResponse, QuestionResponse, InsertQuestionResponse,
-  Redemption, InsertRedemption, UserWithRole
+  Redemption, InsertRedemption, UserWithRole, SurveyTag, InsertSurveyTag,
+  SurveyRedemptionOption, InsertSurveyRedemptionOption
 } from "@shared/schema";
 import createMemoryStore from "memorystore";
 import session from "express-session";
@@ -85,6 +86,18 @@ export interface IStorage {
   removeDoctorFromClient(doctorId: number, clientId: number): Promise<boolean>;
   addDoctorToRepresentative(doctorId: number, representativeId: number): Promise<boolean>;
   removeDoctorFromRepresentative(doctorId: number, representativeId: number): Promise<boolean>;
+
+
+  // Survey Tags operations
+  getSurveyTags(surveyId: number): Promise<SurveyTag[]>;
+  createSurveyTag(tag: InsertSurveyTag): Promise<SurveyTag>;
+  deleteSurveyTag(surveyId: number, tag: string): Promise<boolean>;
+
+  // Survey Redemption Options operations
+  getSurveyRedemptionOptions(surveyId: number): Promise<SurveyRedemptionOption[]>;
+  createSurveyRedemptionOption(option: InsertSurveyRedemptionOption): Promise<SurveyRedemptionOption>;
+  deleteSurveyRedemptionOption(surveyId: number, redemptionType: string): Promise<boolean>;
+
 }
 
 export class MemStorage implements IStorage {
@@ -100,6 +113,9 @@ export class MemStorage implements IStorage {
   private redemptions: Map<number, Redemption>;
   private doctorClientMappings: Map<string, boolean>;
   private doctorRepMappings: Map<string, boolean>;
+  private surveyTags: Map<number, SurveyTag>;
+  private surveyRedemptionOptions: Map<number, SurveyRedemptionOption>;
+
 
   private userId: number = 1;
   private doctorId: number = 1;
@@ -110,6 +126,8 @@ export class MemStorage implements IStorage {
   private doctorSurveyResponseId: number = 1;
   private questionResponseId: number = 1;
   private redemptionId: number = 1;
+  private surveyTagId: number = 1;
+  private surveyRedemptionOptionId: number = 1;
 
   constructor() {
     this.sessionStore = new MemoryStore({
@@ -126,6 +144,8 @@ export class MemStorage implements IStorage {
     this.redemptions = new Map();
     this.doctorClientMappings = new Map();
     this.doctorRepMappings = new Map();
+    this.surveyTags = new Map();
+    this.surveyRedemptionOptions = new Map();
   }
 
   // User operations
@@ -422,7 +442,7 @@ export class MemStorage implements IStorage {
   async deleteSurveyQuestion(id: number): Promise<boolean> {
     return this.surveyQuestions.delete(id);
   }
- 
+
 
   async getSurveyQuestionsBySurveyId(surveyId: number): Promise<SurveyQuestion[]> {
     return Array.from(this.surveyQuestions.values())
@@ -583,6 +603,64 @@ export class MemStorage implements IStorage {
 
   async removeDoctorFromRepresentative(doctorId: number, representativeId: number): Promise<boolean> {
     return this.doctorRepMappings.delete(`${doctorId}-${representativeId}`);
+  }
+
+  // Survey Tags operations
+  async getSurveyTags(surveyId: number): Promise<SurveyTag[]> {
+    return Array.from(this.surveyTags.values()).filter(
+      tag => tag.surveyId === surveyId
+    );
+  }
+
+  async createSurveyTag(tag: InsertSurveyTag): Promise<SurveyTag> {
+    const id = this.surveyTagId++;
+    const timestamp = new Date();
+    const newTag: SurveyTag = {
+      ...tag,
+      id,
+      createdAt: timestamp
+    };
+    this.surveyTags.set(id, newTag);
+    return newTag;
+  }
+
+  async deleteSurveyTag(surveyId: number, tag: string): Promise<boolean> {
+    const tags = Array.from(this.surveyTags.values()).filter(
+      t => t.surveyId === surveyId && t.tag === tag
+    );
+    for (const tagToDelete of tags) {
+      this.surveyTags.delete(tagToDelete.id);
+    }
+    return true;
+  }
+
+  // Survey Redemption Options operations
+  async getSurveyRedemptionOptions(surveyId: number): Promise<SurveyRedemptionOption[]> {
+    return Array.from(this.surveyRedemptionOptions.values()).filter(
+      option => option.surveyId === surveyId
+    );
+  }
+
+  async createSurveyRedemptionOption(option: InsertSurveyRedemptionOption): Promise<SurveyRedemptionOption> {
+    const id = this.surveyRedemptionOptionId++;
+    const timestamp = new Date();
+    const newOption: SurveyRedemptionOption = {
+      ...option,
+      id,
+      createdAt: timestamp
+    };
+    this.surveyRedemptionOptions.set(id, newOption);
+    return newOption;
+  }
+
+  async deleteSurveyRedemptionOption(surveyId: number, redemptionType: string): Promise<boolean> {
+    const options = Array.from(this.surveyRedemptionOptions.values()).filter(
+      o => o.surveyId === surveyId && o.redemptionType === redemptionType
+    );
+    for (const optionToDelete of options) {
+      this.surveyRedemptionOptions.delete(optionToDelete.id);
+    }
+    return true;
   }
 }
 

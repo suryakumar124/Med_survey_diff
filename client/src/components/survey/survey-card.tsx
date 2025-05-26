@@ -1,6 +1,6 @@
-import { Survey } from "@shared/schema";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Survey, SurveyWithTags } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Clock, Award, Users, ArrowRight, Bookmark } from "lucide-react";
 import { Link } from "wouter";
@@ -13,7 +13,7 @@ interface ExtendedSurvey extends Survey {
 }
 
 interface SurveyCardProps {
-  survey: Survey | ExtendedSurvey;
+  survey: SurveyWithTags | ExtendedSurvey;
   userRole: string;
   partialResponse?: boolean;
 }
@@ -92,7 +92,30 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
         <div className="text-sm text-gray-600 mb-4 line-clamp-2">
           {survey.description || "No description provided."}
         </div>
-        
+        {/* Tags */}
+        {('tags' in survey) && survey.tags && survey.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {survey.tags.map((tag, index) => (
+              <Badge key={index} variant="secondary" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Redemption Options for doctors */}
+        { ('redemptionOptions' in survey) && survey.redemptionOptions && survey.redemptionOptions.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs text-gray-600 mb-2">Redemption options:</p>
+            <div className="flex flex-wrap gap-1">
+              {survey.redemptionOptions.map((option, index) => (
+                <Badge key={index} variant="outline" className="text-xs capitalize">
+                  {option.replace('_', ' ')}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex flex-wrap justify-between items-center">
           <div className="flex items-center text-sm text-gray-600">
             <Users className="h-4 w-4 mr-1" />
@@ -102,16 +125,16 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
               <span>0 responses</span>
             )}
           </div>
-          
+
           <div className="mt-2 sm:mt-0">
             <Link href={getSurveyLink()}>
-              <Button 
-                variant={partialResponse ? "default" : "outline"} 
+              <Button
+                variant={partialResponse ? "default" : "outline"}
                 className="space-x-2"
               >
                 <span>
-                  {userRole === "doctor" 
-                    ? partialResponse ? "Resume Survey" : "Take Survey" 
+                  {userRole === "doctor"
+                    ? partialResponse ? "Resume Survey" : "Take Survey"
                     : "View Details"
                   }
                 </span>

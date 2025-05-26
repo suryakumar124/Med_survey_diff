@@ -15,6 +15,8 @@ import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useClient } from "@/hooks/use-client";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Create survey schema
 const createSurveySchema = z.object({
@@ -23,8 +25,9 @@ const createSurveySchema = z.object({
   points: z.number().min(1, { message: "Points must be at least 1" }),
   estimatedTime: z.number().min(1, { message: "Estimated time must be at least 1 minute" }),
   status: z.enum(["draft", "active"], { message: "Status is required" }),
+  tags: z.array(z.string()).optional(),
+  redemptionTypes: z.array(z.string()).min(1, { message: "At least one redemption type is required" }),
 });
-
 type CreateSurveyData = z.infer<typeof createSurveySchema>;
 
 export default function ClientSurveys() {
@@ -40,6 +43,8 @@ export default function ClientSurveys() {
       points: 100,
       estimatedTime: 10,
       status: "draft",
+      tags: [],
+      redemptionTypes: ["upi"],
     },
   });
 
@@ -68,19 +73,21 @@ export default function ClientSurveys() {
   });
 
   const onSubmit = (data: CreateSurveyData) => {
-    if (client) {
-      createSurveyMutation.mutate({
-        ...data,
-        clientId: client.id
-      });
-    } else {
-      toast({
-        title: "Error", 
-        description: "Client information not available. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
+  if (client) {
+    createSurveyMutation.mutate({
+      ...data,
+      clientId: client.id,
+      tags: data.tags || [],
+      redemptionTypes: data.redemptionTypes || []
+    });
+  } else {
+    toast({
+      title: "Error", 
+      description: "Client information not available. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
 
   return (
     <MainLayout pageTitle="Surveys" pageDescription="Create and manage your surveys">
@@ -172,6 +179,72 @@ export default function ClientSurveys() {
                         <FormDescription>
                           Approximate time to complete the survey.
                         </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tags"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tags (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Enter tags separated by commas (e.g., cardiology, diabetes, research)"
+                            value={field.value?.join(", ") || ""}
+                            onChange={(e) => {
+                              const tags = e.target.value
+                                .split(",")
+                                .map(tag => tag.trim())
+                                .filter(tag => tag.length > 0);
+                              field.onChange(tags);
+                            }}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Help doctors find relevant surveys by adding descriptive tags.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="redemptionTypes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Redemption Options</FormLabel>
+                        <FormDescription>
+                          Select how doctors can redeem points for this survey.
+                        </FormDescription>
+                        <div className="space-y-3">
+                          {[
+                            { value: "upi", label: "UPI Transfer" },
+                            { value: "amazon", label: "Amazon Gift Card" },
+                            { value: "paytm", label: "Paytm Wallet" },
+                            { value: "bank", label: "Bank Transfer" }
+                          ].map((option) => (
+                            <div key={option.value} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={option.value}
+                                checked={field.value?.includes(option.value) || false}
+                                onCheckedChange={(checked) => {
+                                  const currentTypes = field.value || [];
+                                  if (checked) {
+                                    field.onChange([...currentTypes, option.value]);
+                                  } else {
+                                    field.onChange(currentTypes.filter(type => type !== option.value));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={option.value} className="text-sm font-medium">
+                                {option.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
