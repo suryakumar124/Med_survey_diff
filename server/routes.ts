@@ -461,6 +461,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Survey Tags endpoints
   // Get all available tags across surveys
+  // NEW: Survey-specific redemption endpoint (replaces the old points-based system)
+  app.post("/api/surveys/:id/redeem", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.id);
+      const survey = await storage.getSurvey(surveyId);
+      if (!survey) {
+        return res.status(404).json({ message: "Survey not found" });
+      }
+
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+
+      // Check if doctor has completed this survey
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const completedResponse = responses.find(r => r.surveyId === surveyId && r.completed);
+      if (!completedResponse) {
+        return res.status(400).json({ message: "Survey not completed" });
+      }
+
+      // Check if already redeemed
+      const existingRedemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+      const alreadyRedeemed = existingRedemptions.find(r => r.surveyId === surveyId);
+      if (alreadyRedeemed) {
+        return res.status(400).json({ message: "Survey rewards already redeemed" });
+      }
+
+      // Validate redemption type is available for this survey
+      const availableOptions = await storage.getSurveyRedemptionOptions(surveyId);
+      const validTypes = availableOptions
+        .filter(option => option.isActive)
+        .map(option => option.redemptionType);
+
+      if (!validTypes.includes(req.body.redemptionType)) {
+        return res.status(400).json({
+          message: "Invalid redemption type for this survey",
+          availableTypes: validTypes
+        });
+      }
+
+      // Create redemption record
+      const redemption = await storage.createRedemption({
+        doctorId: doctor.id,
+        surveyId: surveyId,
+        points: survey.points,
+        redemptionType: req.body.redemptionType,
+        redemptionDetails: req.body.redemptionDetails,
+        status: 'pending'
+      });
+
+      // Update doctor's total redeemed points
+      await storage.updateDoctor(doctor.id, {
+        redeemedPoints: doctor.redeemedPoints + survey.points
+      });
+
+      res.status(201).json(redemption);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to redeem survey rewards" });
+    }
+  });
+
+  // NEW: Get completed surveys with redemption info for a doctor
+  app.get("/api/doctors/current/completed-surveys-with-redemption", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+
+      // Get all completed responses
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const completedResponses = responses.filter(r => r.completed);
+
+      // Get all redemptions for this doctor
+      const redemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+
+      // Enrich responses with survey details and redemption info
+      const enrichedResponses = await Promise.all(
+        completedResponses.map(async (response) => {
+          const survey = await storage.getSurvey(response.surveyId);
+          const redemptionOptions = await storage.getSurveyRedemptionOptions(response.surveyId);
+          const redemption = redemptions.find(r => r.surveyId === response.surveyId);
+
+          return {
+            ...response,
+            survey: {
+              ...survey,
+              redemptionOptions: redemptionOptions
+                .filter(option => option.isActive)
+                .map(option => option.redemptionType)
+            },
+            canRedeem: redemptionOptions.length > 0 && redemptionOptions.some(option => option.isActive),
+            alreadyRedeemed: !!redemption,
+            redemption: redemption || null
+          };
+        })
+      );
+
+      res.json(enrichedResponses);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch completed surveys with redemption info" });
+    }
+  });
+
+  // NEW: Get specific survey response for a doctor
+  app.get("/api/doctors/current/survey-response/:surveyId", hasRole(["doctor"]), async (req, res) => {
+    try {
+      const surveyId = parseInt(req.params.surveyId);
+      const doctor = await storage.getDoctorByUserId(req.user.id);
+      if (!doctor) {
+        return res.status(404).json({ message: "Doctor not found" });
+      }
+
+      // Get the survey response
+      const responses = await storage.getDoctorSurveyResponsesByDoctorId(doctor.id);
+      const surveyResponse = responses.find(r => r.surveyId === surveyId && r.completed);
+
+      if (!surveyResponse) {
+        return res.status(404).json({ message: "Survey response not found or not completed" });
+      }
+
+      // Get survey details and redemption options
+      const survey = await storage.getSurvey(surveyId);
+      const redemptionOptions = await storage.getSurveyRedemptionOptions(surveyId);
+      const redemptions = await storage.getRedemptionsByDoctorId(doctor.id);
+      const redemption = redemptions.find(r => r.surveyId === surveyId);
+
+      const enrichedResponse = {
+        ...surveyResponse,
+        survey: {
+          ...survey,
+          redemptionOptions: redemptionOptions
+            .filter(option => option.isActive)
+            .map(option => option.redemptionType)
+        },
+        canRedeem: redemptionOptions.length > 0 && redemptionOptions.some(option => option.isActive),
+        alreadyRedeemed: !!redemption,
+        redemption: redemption || null
+      };
+
+      res.json(enrichedResponse);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch survey response" });
+    }
+  });
+
+
   app.get("/api/surveys/tags/all", isAuthenticated, async (req, res) => {
     try {
       let surveys = [];
@@ -1280,57 +1428,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to check redemption status" });
     }
   });
-  app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
-    try {
-      const doctorId = parseInt(req.params.id);
-      const doctor = await storage.getDoctor(doctorId);
-      if (!doctor) {
-        return res.status(404).json({ message: "Doctor not found" });
-      }
+  // app.post("/api/doctors/:id/redeem", hasRole(["doctor"]), async (req, res) => {
+  //   try {
+  //     const doctorId = parseInt(req.params.id);
+  //     const doctor = await storage.getDoctor(doctorId);
+  //     if (!doctor) {
+  //       return res.status(404).json({ message: "Doctor not found" });
+  //     }
 
-      // Check permissions
-      if (doctor.userId !== req.user.id) {
-        return res.status(403).json({ message: "Forbidden: Not your profile" });
-      }
+  //     // Check permissions
+  //     if (doctor.userId !== req.user.id) {
+  //       return res.status(403).json({ message: "Forbidden: Not your profile" });
+  //     }
 
-      // Validate redemption data
-      let redemptionData;
-      try {
-        redemptionData = insertRedemptionSchema.parse({
-          ...req.body,
-          doctorId
-        });
-      } catch (error) {
-        if (error instanceof ZodError) {
-          const validationError = fromZodError(error);
-          return res.status(400).json({ message: validationError.message });
-        }
-        throw error;
-      }
+  //     // Validate redemption data
+  //     let redemptionData;
+  //     try {
+  //       redemptionData = insertRedemptionSchema.parse({
+  //         ...req.body,
+  //         doctorId
+  //       });
+  //     } catch (error) {
+  //       if (error instanceof ZodError) {
+  //         const validationError = fromZodError(error);
+  //         return res.status(400).json({ message: validationError.message });
+  //       }
+  //       throw error;
+  //     }
 
-      // Check if doctor has enough points
-      const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
-      if (availablePoints < redemptionData.points) {
-        return res.status(400).json({ message: "Insufficient points" });
-      }
+  //     // Check if doctor has enough points
+  //     const availablePoints = doctor.totalPoints - doctor.redeemedPoints;
+  //     if (availablePoints < redemptionData.points) {
+  //       return res.status(400).json({ message: "Insufficient points" });
+  //     }
 
-      // Create redemption record - store the redemptionDetails directly as a string
-      // No need to format or JSON.stringify as we'll handle parsing in the processor
-      const redemption = await storage.createRedemption({
-        ...redemptionData,
-        status: 'pending'
-      });
+  //     // Create redemption record - store the redemptionDetails directly as a string
+  //     // No need to format or JSON.stringify as we'll handle parsing in the processor
+  //     const redemption = await storage.createRedemption({
+  //       ...redemptionData,
+  //       status: 'pending'
+  //     });
 
-      // Update doctor's redeemed points
-      await storage.updateDoctor(doctor.id, {
-        redeemedPoints: doctor.redeemedPoints + redemptionData.points
-      });
+  //     // Update doctor's redeemed points
+  //     await storage.updateDoctor(doctor.id, {
+  //       redeemedPoints: doctor.redeemedPoints + redemptionData.points
+  //     });
 
-      res.status(201).json(redemption);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to process redemption" });
-    }
-  });
+  //     res.status(201).json(redemption);
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Failed to process redemption" });
+  //   }
+  // });
 
   // Send reminder email to a doctor for a specific survey
   app.post("/api/doctors/:id/send-reminder", hasRole(["client", "admin"]), async (req, res) => {

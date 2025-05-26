@@ -1,30 +1,16 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Loader2, Award, ArrowRight, CreditCard, Wallet } from "lucide-react";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Award, CreditCard, Wallet, CheckCircle, Clock, FileText } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { format } from "date-fns";
 import { Redemption } from "@shared/schema";
 import { useState } from "react";
-import { Progress } from "@/components/ui/progress";
-
-// Redemption form schema
-const redemptionSchema = z.object({
-  points: z.number().min(100, { message: "Minimum redemption is 100 points" }),
-  redemptionType: z.enum(["upi", "amazon"], { message: "Please select a redemption method" }),
-  redemptionDetails: z.string().min(1, { message: "Redemption details are required" }),
-});
-
-type RedemptionFormData = z.infer<typeof redemptionSchema>;
+import { Link } from "wouter";
 
 interface PointsInfo {
   totalPoints: number;
@@ -33,9 +19,32 @@ interface PointsInfo {
   redemptions: Redemption[];
 }
 
+// Extended survey response type
+interface CompletedSurveyResponse {
+  id: number;
+  doctorId: number;
+  surveyId: number;
+  completed: boolean;
+  pointsEarned: number;
+  startedAt: string;
+  completedAt: string;
+  survey: {
+    id: number;
+    title: string;
+    description: string;
+    points: number;
+    estimatedTime: number;
+    redemptionOptions?: string[];
+  };
+  questionResponses: any[];
+  canRedeem: boolean; // Whether this survey can be redeemed
+  alreadyRedeemed: boolean; // Whether this survey has been redeemed
+  redemption?: Redemption; // Associated redemption if exists
+}
+
 export default function DoctorPoints() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<string>("completed-surveys");
 
   // Get the doctor ID from the user's role
   const { data: doctorInfo } = useQuery<{ id: number }>({
@@ -54,63 +63,15 @@ export default function DoctorPoints() {
     enabled: !!doctorInfo?.id,
   });
 
-  // Redemption form
-  const form = useForm<RedemptionFormData>({
-    resolver: zodResolver(redemptionSchema),
-    defaultValues: {
-      points: 100,
-      redemptionType: "amazon",
-      redemptionDetails: "",
+  // Fetch completed survey responses with redemption info
+  const { data: completedSurveys, isLoading: surveysLoading } = useQuery<CompletedSurveyResponse[]>({
+    queryKey: ["/api/doctors/current/completed-surveys-with-redemption"],
+    queryFn: async () => {
+      const res = await fetch(`/api/doctors/current/completed-surveys-with-redemption`);
+      if (!res.ok) throw new Error("Failed to fetch completed surveys");
+      return res.json();
     },
   });
-
-  // Watch the points value to validate against available points
-  const watchedPoints = form.watch("points");
-  const watchedRedemptionType = form.watch("redemptionType");
-
-  // Points redemption mutation
-  const redeemMutation = useMutation({
-    mutationFn: async (data: RedemptionFormData) => {
-      const res = await apiRequest(
-        "POST",
-        `/api/doctors/${doctorInfo?.id}/redeem`,
-        data
-      );
-      return await res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Redemption successful",
-        description: "Your points have been successfully redeemed.",
-      });
-      form.reset();
-      queryClient.invalidateQueries({ queryKey: ["/api/doctors", doctorInfo?.id, "points"] });
-      setActiveTab("history");
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Redemption failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const onSubmit = (data: RedemptionFormData) => {
-    if (!pointsInfo) return;
-
-    // Validate against available points
-    if (data.points > pointsInfo.availablePoints) {
-      toast({
-        title: "Insufficient points",
-        description: `You only have ${pointsInfo.availablePoints} points available.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    redeemMutation.mutate(data);
-  };
 
   const formatDate = (dateString: string | Date | null) => {
     if (!dateString) return "Unknown date";
@@ -121,41 +82,16 @@ export default function DoctorPoints() {
     }
   };
 
-  // Get the redemption type placeholder text
-  const getRedemptionDetailsPlaceholder = (type: string) => {
-    if (type === "upi") {
-      return "Enter your UPI ID (e.g., name@bank)";
-    } else if (type === "amazon") {
-      return "Enter your email address for Amazon gift card";
+  const formatTime = (minutes: number) => {
+    if (minutes < 60) {
+      return `${minutes} min`;
     }
-    return "Enter redemption details";
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours} hr${hours > 1 ? 's' : ''}${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ''}`;
   };
 
-
-  // Add this function in the component
-  const checkRedemptionStatus = async (redemptionId: number) => {
-    try {
-      const res = await fetch(`/api/redemptions/${redemptionId}/status`);
-      if (!res.ok) throw new Error("Failed to check status");
-
-      const updatedRedemption = await res.json();
-
-      // Refresh the points data to show updated status
-      queryClient.invalidateQueries({ queryKey: ["/api/doctors", doctorInfo?.id, "points"] });
-
-      toast({
-        title: "Status updated",
-        description: `Redemption status: ${updatedRedemption.status}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Failed to check status",
-        description: "Could not retrieve the latest status",
-        variant: "destructive",
-      });
-    }
-  };
-  if (isLoading) {
+  if (isLoading || surveysLoading) {
     return (
       <MainLayout pageTitle="My Points" pageDescription="Manage and redeem your earned points">
         <div className="flex justify-center items-center h-64">
@@ -183,6 +119,15 @@ export default function DoctorPoints() {
     );
   }
 
+  // Filter surveys that can be redeemed and haven't been redeemed yet
+  const redeemableSurveys = completedSurveys?.filter(survey => 
+    survey.canRedeem && !survey.alreadyRedeemed
+  ) || [];
+
+  const redeemedSurveys = completedSurveys?.filter(survey => 
+    survey.alreadyRedeemed
+  ) || [];
+
   return (
     <MainLayout pageTitle="My Points" pageDescription="Manage and redeem your earned points">
       <div className="space-y-6">
@@ -197,15 +142,33 @@ export default function DoctorPoints() {
               </div>
 
               <div className="flex flex-col items-center justify-center p-6 bg-green-50 rounded-lg">
-                <Wallet className="h-10 w-10 text-green-600 mb-2" />
-                <h3 className="text-2xl font-bold text-green-600">{pointsInfo.availablePoints}</h3>
-                <p className="text-sm text-gray-600">Available Points</p>
+                <CheckCircle className="h-10 w-10 text-green-600 mb-2" />
+                <h3 className="text-2xl font-bold text-green-600">{redeemableSurveys.length}</h3>
+                <p className="text-sm text-gray-600">Surveys Available for Redemption</p>
               </div>
 
               <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-lg">
                 <CreditCard className="h-10 w-10 text-gray-600 mb-2" />
                 <h3 className="text-2xl font-bold text-gray-600">{pointsInfo.redeemedPoints}</h3>
-                <p className="text-sm text-gray-600">Redeemed Points</p>
+                <p className="text-sm text-gray-600">Points Already Redeemed</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Important Notice */}
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <div className="p-1 bg-amber-100 rounded-full">
+                <Award className="h-4 w-4 text-amber-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-amber-800">New Redemption System</h4>
+                <p className="text-sm text-amber-700 mt-1">
+                  You can now redeem rewards directly from completed surveys. Each survey has specific redemption options (UPI, Amazon Pay, etc.). 
+                  Look for surveys with available redemption options below.
+                </p>
               </div>
             </div>
           </CardContent>
@@ -213,187 +176,172 @@ export default function DoctorPoints() {
 
         {/* Tabs for different sections */}
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="overview">Points Overview</TabsTrigger>
-            <TabsTrigger value="redeem">Redeem Points</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="completed-surveys">Available Redemptions</TabsTrigger>
+            <TabsTrigger value="redeemed-surveys">Redeemed Surveys</TabsTrigger>
             <TabsTrigger value="history">Redemption History</TabsTrigger>
           </TabsList>
 
-          {/* Points Overview Tab */}
-          <TabsContent value="overview">
+          {/* Available Redemptions Tab */}
+          <TabsContent value="completed-surveys">
             <Card>
               <CardHeader>
-                <CardTitle>Points Summary</CardTitle>
-                <CardDescription>Overview of your points activity</CardDescription>
+                <CardTitle>Surveys Available for Redemption</CardTitle>
+                <CardDescription>Complete surveys that you can redeem rewards from</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm font-medium">Points Usage</span>
-                      <span className="text-sm text-gray-500">
-                        {pointsInfo.redeemedPoints} / {pointsInfo.totalPoints} redeemed
-                      </span>
-                    </div>
-                    <Progress value={(pointsInfo.redeemedPoints / pointsInfo.totalPoints) * 100} className="h-2" />
-                  </div>
+                {redeemableSurveys.length > 0 ? (
+                  <div className="space-y-4">
+                    {redeemableSurveys.map((survey) => (
+                      <div key={survey.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-4">
+                            <div className="p-3 bg-green-100 rounded-full">
+                              <CheckCircle className="h-6 w-6 text-green-600" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-medium text-lg">{survey.survey.title}</h3>
+                              <p className="text-sm text-gray-500 mt-1 mb-3">
+                                {survey.survey.description || "No description provided."}
+                              </p>
+                              
+                              <div className="flex flex-wrap items-center gap-4 mb-3">
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <Award className="h-4 w-4 mr-1 text-amber-500" />
+                                  <span>{survey.pointsEarned} points earned</span>
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <Clock className="h-4 w-4 mr-1 text-gray-500" />
+                                  <span>Completed on {formatDate(survey.completedAt)}</span>
+                                </div>
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <FileText className="h-4 w-4 mr-1 text-gray-500" />
+                                  <span>{formatTime(survey.survey.estimatedTime)}</span>
+                                </div>
+                              </div>
 
-                  <div className="rounded-lg border overflow-hidden">
-                    <div className="bg-gray-50 px-4 py-3 border-b">
-                      <h3 className="text-sm font-medium">Points Breakdown</h3>
-                    </div>
-                    <div className="divide-y">
-                      <div className="flex justify-between px-4 py-3">
-                        <span className="text-sm">Total Points Earned</span>
-                        <span className="text-sm font-medium">{pointsInfo.totalPoints}</span>
+                              {/* Redemption Options */}
+                              {survey.survey.redemptionOptions && survey.survey.redemptionOptions.length > 0 && (
+                                <div className="mb-3">
+                                  <p className="text-xs text-gray-600 mb-2">Available redemption options:</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {survey.survey.redemptionOptions.map((option) => (
+                                      <Badge key={option} variant="outline" className="text-xs capitalize">
+                                        {option === "upi" ? "UPI Transfer" : option === "amazon" ? "Amazon Pay" : option.replace('_', ' ')}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                Ready for Redemption
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="ml-4">
+                            <Link href={`/doctor/surveys/${survey.surveyId}/redeem`}>
+                              <Button className="space-x-2">
+                                <Wallet className="h-4 w-4" />
+                                <span>Redeem Rewards</span>
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex justify-between px-4 py-3">
-                        <span className="text-sm">Points Redeemed</span>
-                        <span className="text-sm font-medium">{pointsInfo.redeemedPoints}</span>
-                      </div>
-                      <div className="flex justify-between px-4 py-3 bg-green-50">
-                        <span className="text-sm font-medium">Available Balance</span>
-                        <span className="text-sm font-medium text-green-600">{pointsInfo.availablePoints}</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No surveys available for redemption</h3>
+                    <p className="text-gray-500 mb-4">
+                      Complete surveys with redemption options to earn rewards you can redeem.
+                    </p>
+                    <Link href="/doctor/available-surveys">
+                      <Button variant="outline">
+                        Browse Available Surveys
+                      </Button>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={() => setActiveTab("redeem")}
-                  disabled={pointsInfo.availablePoints < 100}
-                  className="w-full"
-                >
-                  {pointsInfo.availablePoints < 100
-                    ? "Earn more points to redeem"
-                    : "Redeem Points"}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </CardFooter>
             </Card>
           </TabsContent>
 
-          {/* Redeem Points Tab */}
-          <TabsContent value="redeem">
+          {/* Redeemed Surveys Tab */}
+          <TabsContent value="redeemed-surveys">
             <Card>
               <CardHeader>
-                <CardTitle>Redeem Your Points</CardTitle>
-                <CardDescription>
-                  You have {pointsInfo.availablePoints} points available to redeem
-                </CardDescription>
+                <CardTitle>Redeemed Surveys</CardTitle>
+                <CardDescription>Surveys for which you have already redeemed rewards</CardDescription>
               </CardHeader>
               <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    <FormField
-                      control={form.control}
-                      name="points"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Points to Redeem</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="Enter points amount"
-                              min={100}
-                              max={pointsInfo.availablePoints}
-                              {...field}
-                              onChange={e => field.onChange(parseInt(e.target.value) || 0)}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Minimum redemption: 100 points. You have {pointsInfo.availablePoints} points available.
-                          </FormDescription>
-                          <FormMessage />
-                          {watchedPoints > pointsInfo.availablePoints && (
-                            <p className="text-sm font-medium text-destructive">
-                              You don't have enough points available.
+                {redeemedSurveys.length > 0 ? (
+                  <div className="space-y-4">
+                    {redeemedSurveys.map((survey) => (
+                      <div key={survey.id} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-start space-x-4">
+                          <div className="p-3 bg-blue-100 rounded-full">
+                            <CreditCard className="h-6 w-6 text-blue-600" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-medium text-lg">{survey.survey.title}</h3>
+                            <p className="text-sm text-gray-500 mt-1 mb-3">
+                              {survey.survey.description || "No description provided."}
                             </p>
-                          )}
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="redemptionType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Redemption Method</FormLabel>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div
-                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${field.value === "amazon" ? "border-primary bg-primary-50" : "border-gray-200"
-                                }`}
-                              onClick={() => field.onChange("amazon")}
-                            >
-                              <div className="p-2 bg-amber-100 rounded-full mb-2">
-                                <Wallet className="h-6 w-6 text-amber-600" />
+                            
+                            <div className="flex flex-wrap items-center gap-4 mb-3">
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Award className="h-4 w-4 mr-1 text-amber-500" />
+                                <span>{survey.pointsEarned} points earned</span>
                               </div>
-                              <span className="text-sm font-medium">Amazon Pay Balance</span>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Clock className="h-4 w-4 mr-1 text-gray-500" />
+                                <span>Completed on {formatDate(survey.completedAt)}</span>
+                              </div>
+                              {survey.redemption && (
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <CreditCard className="h-4 w-4 mr-1 text-blue-500" />
+                                  <span>Redeemed on {formatDate(survey.redemption.createdAt)}</span>
+                                </div>
+                              )}
                             </div>
-                            <div
-                              className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer ${field.value === "upi" ? "border-primary bg-primary-50" : "border-gray-200"
-                                }`}
-                              onClick={() => field.onChange("upi")}
-                            >
-                              <div className="p-2 bg-green-100 rounded-full mb-2">
-                                <Wallet className="h-6 w-6 text-green-600" />
-                              </div>
-                              <span className="text-sm font-medium">UPI Transfer</span>
+
+                            <div className="flex items-center space-x-2">
+                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                                Already Redeemed
+                              </Badge>
+                              {survey.redemption && (
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${
+                                    survey.redemption.status === "completed"
+                                      ? "border-green-300 text-green-700"
+                                      : survey.redemption.status === "pending"
+                                      ? "border-amber-300 text-amber-700"
+                                      : "border-red-300 text-red-700"
+                                  }`}
+                                >
+                                  {survey.redemption.status.charAt(0).toUpperCase() + survey.redemption.status.slice(1)}
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="redemptionDetails"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            {watchedRedemptionType === "upi" ? "UPI ID" : "Mobile Number"}
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder={
-                                watchedRedemptionType === "upi"
-                                  ? "Enter your UPI ID"
-                                  : "Enter mobile number for Amazon Pay"
-                              }
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            {watchedRedemptionType === "upi"
-                              ? "Enter your UPI ID where you want to receive the money"
-                              : "Enter the mobile number linked to your Amazon Pay account"}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                   
-
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={redeemMutation.isPending || watchedPoints > pointsInfo.availablePoints}
-                    >
-                      {redeemMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        "Redeem Points"
-                      )}
-                    </Button>
-                  </form>
-                </Form>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No redeemed surveys yet</h3>
+                    <p className="text-gray-500">
+                      Surveys you redeem rewards from will appear here.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -403,7 +351,7 @@ export default function DoctorPoints() {
             <Card>
               <CardHeader>
                 <CardTitle>Redemption History</CardTitle>
-                <CardDescription>Your previous point redemptions</CardDescription>
+                <CardDescription>Your complete redemption transaction history</CardDescription>
               </CardHeader>
               <CardContent>
                 {pointsInfo.redemptions && pointsInfo.redemptions.length > 0 ? (
@@ -418,8 +366,14 @@ export default function DoctorPoints() {
                               <Wallet className="h-5 w-5 text-green-600" />
                             )}
                           </div>
-                          {
-                            redemption.payoutId && (
+                          <div>
+                            <p className="font-medium">
+                              {redemption.redemptionType === "amazon" ? "Amazon Pay Balance" : "UPI Transfer"}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {redemption.points} points • {formatDate(redemption.createdAt)}
+                            </p>
+                            {redemption.payoutId && (
                               <div className="text-xs mt-2">
                                 <p>Payout ID: {redemption.payoutId}</p>
                                 <p>Status: {redemption.payoutStatus || 'Unknown'}</p>
@@ -427,29 +381,21 @@ export default function DoctorPoints() {
                                   <p>Processed: {formatDate(redemption.processedAt)}</p>
                                 )}
                               </div>
-                            )
-                          }
-                          <div>
-                            <p className="font-medium">
-                              {redemption.redemptionType === "amazon" ? "Amazon Gift Card" : "UPI Transfer"}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {redemption.points} points • {formatDate(redemption.createdAt)}
-                            </p>
+                            )}
                           </div>
                         </div>
                         <div>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${redemption.status === "completed"
-                            ? "bg-green-100 text-green-800"
-                            : redemption.status === "pending"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-800"
-                            }`}>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            redemption.status === "completed"
+                              ? "bg-green-100 text-green-800"
+                              : redemption.status === "pending"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-gray-100 text-gray-800"
+                          }`}>
                             {redemption.status.charAt(0).toUpperCase() + redemption.status.slice(1)}
                           </span>
                         </div>
                       </div>
-
                     ))}
                   </div>
                 ) : (
@@ -457,11 +403,10 @@ export default function DoctorPoints() {
                     <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No redemptions yet</h3>
                     <p className="text-gray-500">
-                      You haven't redeemed any points yet. Go to the Redeem Points tab to get started.
+                      Your redemption history will appear here once you start redeeming survey rewards.
                     </p>
                   </div>
                 )}
-
               </CardContent>
             </Card>
           </TabsContent>
