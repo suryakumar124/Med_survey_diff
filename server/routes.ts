@@ -553,7 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .filter(option => option.isActive)
                 .map(option => option.redemptionType)
             },
-            canRedeem: redemptionOptions.length > 0 && redemptionOptions.some(option => option.isActive),
+            canRedeem: redemptionOptions.length > 0 && redemptionOptions.some(option => option.isActive) && !redemption,
             alreadyRedeemed: !!redemption,
             redemption: redemption || null
           };
@@ -827,7 +827,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'pending'
       });
 
-      res.status(201).json(redemption);
+      res.status(201).json({
+        ...redemption,
+        message: "Redemption request submitted successfully. Processing will begin within 24-48 hours."
+      });
     } catch (error) {
       res.status(500).json({ message: "Failed to redeem survey rewards" });
     }

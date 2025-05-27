@@ -31,6 +31,7 @@ import DoctorCompletedSurveys from "@/pages/doctor/completed-surveys";
 import DoctorPoints from "@/pages/doctor/points";
 import DoctorProfile from "@/pages/doctor/profile";
 import RepresentativeDetails from "@/pages/client/representative-details";
+import SurveyRedemption from "./pages/doctor/survey-redemption";
 
 function Router() {
   return (
@@ -61,7 +62,7 @@ function Router() {
       <ProtectedRoute path="/doctor/completed-surveys" component={DoctorCompletedSurveys} />
       <ProtectedRoute path="/doctor/points" component={DoctorPoints} />
       <ProtectedRoute path="/doctor/profile" component={DoctorProfile} />
-    
+      <ProtectedRoute path="/doctor/survey-redemption/:surveyId" component={SurveyRedemption} />
 
       {/* Fallback to 404 */}
       <Route component={NotFound} />

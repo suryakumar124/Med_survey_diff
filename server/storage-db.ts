@@ -112,6 +112,8 @@ export class DatabaseStorage implements IStorage {
     return newDoctor;
   }
 
+
+
   async updateDoctor(id: number, doctorData: Partial<Doctor>): Promise<Doctor | undefined> {
     const [updatedDoctor] = await db
       .update(doctors)
@@ -356,12 +358,17 @@ export class DatabaseStorage implements IStorage {
   }
 
 
-  // Add this method after getRedemptionsByDoctorId
   async getRedemptionsByStatus(status: string): Promise<Redemption[]> {
     return db
       .select()
       .from(redemptions)
       .where(eq(redemptions.status, status));
+  }
+  async getRedemptionsByDoctorId(doctorId: number): Promise<Redemption[]> {
+    return db
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.doctorId, doctorId));
   }
 
 
@@ -477,12 +484,12 @@ export class DatabaseStorage implements IStorage {
     return updatedRedemption;
   }
 
-  async getRedemptionsByDoctorId(doctorId: number): Promise<Redemption[]> {
-    return db
-      .select()
-      .from(redemptions)
-      .where(eq(redemptions.doctorId, doctorId));
-  }
+  // async getRedemptionsByDoctorId(doctorId: number): Promise<Redemption[]> {
+  //   return db
+  //     .select()
+  //     .from(redemptions)
+  //     .where(eq(redemptions.doctorId, doctorId));
+  // }
 
   // Mapping operations
   async addDoctorToClient(doctorId: number, clientId: number): Promise<boolean> {

@@ -157,7 +157,7 @@ export default function DoctorPoints() {
         </Card>
 
         {/* Important Notice */}
-        <Card className="border-amber-200 bg-amber-50">
+        {/* <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4">
             <div className="flex items-start space-x-3">
               <div className="p-1 bg-amber-100 rounded-full">
@@ -172,7 +172,7 @@ export default function DoctorPoints() {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Tabs for different sections */}
         <Tabs defaultValue={activeTab} value={activeTab} onValueChange={setActiveTab}>
@@ -241,7 +241,7 @@ export default function DoctorPoints() {
                           </div>
                           
                           <div className="ml-4">
-                            <Link href={`/doctor/surveys/${survey.surveyId}/redeem`}>
+                            <Link href={`/doctor/survey-redemption/${survey.surveyId}`}>
                               <Button className="space-x-2">
                                 <Wallet className="h-4 w-4" />
                                 <span>Redeem Rewards</span>
