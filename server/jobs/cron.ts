@@ -5,7 +5,7 @@ import { processPendingRedemptions } from '../services/redemptionService';
 export function startCronJobs() {
   console.log('Setting up cron jobs', 'cron');
 
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     console.log('Running scheduled redemption processing', 'cron');
     try {
       const result = await processPendingRedemptions();
