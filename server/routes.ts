@@ -34,6 +34,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next();
     };
   };
+  app.post("/api/auth/validate-email", async (req, res) => {
+    try {
+      const { email } = req.body;
+      const existingUser = await storage.getUserByEmail(email);
+
+      res.json({
+        exists: !!existingUser,
+        canLogin: !!existingUser,
+        canRegister: !existingUser
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to validate email" });
+    }
+  });
 
   // Client Routes
   app.get("/api/clients", isAuthenticated, async (req, res) => {

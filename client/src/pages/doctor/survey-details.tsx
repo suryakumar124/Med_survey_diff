@@ -1,4 +1,3 @@
-// Modifications to client/src/pages/doctor/survey-details.tsx
 import { useState, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Survey, SurveyQuestion } from "@shared/schema";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Award, Clock, FileText, CheckCircle, ArrowRightCircle } from "lucide-react";
+import { Loader2, Award, Clock, FileText, CheckCircle, ArrowRightCircle, Users, Download, ArrowLeft, Star } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { SurveyTakingFlow } from "@/components/survey/survey-taking-flow";
@@ -73,6 +72,7 @@ export default function DoctorSurveyDetails() {
       setAutoSaving(false);
     }
   });
+
   // Take survey mutation
   const takeSurveyMutation = useMutation({
     mutationFn: async (responses: any[]) => {
@@ -146,7 +146,7 @@ export default function DoctorSurveyDetails() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Active</Badge>;
       case "draft":
         return <Badge variant="outline" className="text-gray-800">Draft</Badge>;
       case "closed":
@@ -159,6 +159,15 @@ export default function DoctorSurveyDetails() {
   const handleTakeSurvey = () => {
     // Switch to questions tab if user clicked "Take Survey Now" from details tab
     setActiveTab("questions");
+  };
+
+  const handleDownloadReport = () => {
+    // Handle report download
+    console.log("Downloading report...");
+    toast({
+      title: "Download started",
+      description: "Your report is being prepared for download.",
+    });
   };
 
   // Check if the survey has already been completed
@@ -213,170 +222,217 @@ export default function DoctorSurveyDetails() {
 
   if (surveyLoading) {
     return (
-      <MainLayout pageTitle="Survey Details" pageDescription="Loading...">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </MainLayout>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-500" />
+      </div>
     );
   }
 
   if (!survey) {
     return (
-      <MainLayout pageTitle="Survey Not Found" pageDescription="The requested survey could not be found">
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold mb-4">Survey Not Found</h2>
-          <p className="mb-6">The survey you're looking for doesn't exist or you don't have permission to view it.</p>
-          <Link href="/doctor/available-surveys">
-            <Button>Back to Available Surveys</Button>
-          </Link>
-        </div>
-      </MainLayout>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <Card className="max-w-md mx-4 border-0 shadow-lg">
+          <CardContent className="text-center py-12">
+            <h2 className="text-2xl font-bold mb-4">Survey Not Found</h2>
+            <p className="mb-6 text-slate-600">The survey you're looking for doesn't exist or you don't have permission to view it.</p>
+            <Link href="/doctor/available-surveys">
+              <Button className="bg-teal-500 hover:bg-teal-600">Back to Available Surveys</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   const completed = isSurveyCompleted();
 
+  // Mock data for participant count - in real app, this would come from survey API
+  const participantCount = survey.responseCount || 90;
+  const mockTags = survey.tags || ["Cardiology", "Treatment", "Research", "Clinical"];
+
   return (
-    <MainLayout
-      pageTitle={survey.title}
-      pageDescription="View survey details and take survey"
-      backLink="/doctor/available-surveys"
-      backLinkLabel="Back to Available Surveys"
-    >
-      <div className="space-y-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <Link href="/doctor/available-surveys">
+                <Button variant="ghost" size="sm" className="p-2">
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </Link>
               <div>
-                <CardTitle className="text-2xl">{survey.title}</CardTitle>
-                <CardDescription className="mt-1 max-w-2xl">
-                  {survey.description || "No description provided."}
-                </CardDescription>
-              </div>
-              <div className="flex items-center space-x-3 mt-4 md:mt-0">
-                {getStatusBadge(survey.status)}
-                {completed && (
-                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Completed</Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center space-x-3">
-                <Award className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Points</p>
-                  <p className="text-sm text-gray-500">{survey.points} points</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Clock className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Estimated Time</p>
-                  <p className="text-sm text-gray-500">{formatTime(survey.estimatedTime)}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <FileText className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Created</p>
-                  <p className="text-sm text-gray-500">{formatDate(survey.createdAt)}</p>
+                <h1 className="font-semibold text-lg text-slate-900 truncate max-w-[200px] md:max-w-none">
+                  {survey.title}
+                </h1>
+                <div className="flex items-center space-x-2 mt-1">
+                  {getStatusBadge(survey.status)}
+                  {completed && (
+                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs px-2 py-1">
+                      Completed
+                    </Badge>
+                  )}
+                  <div className="flex items-center text-sm text-slate-600">
+                    <Star className="h-4 w-4 text-amber-500 mr-1" />
+                    <span className="font-medium">{survey.points}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </CardContent>
+            <div className="flex items-center space-x-2 text-sm text-slate-600">
+              <Users className="h-4 w-4 text-teal-600" />
+              <span className="font-semibold text-teal-600 text-lg">{participantCount}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        {/* Tags */}
+        <div className="flex flex-wrap gap-2">
+          {mockTags.map((tag, index) => (
+            <Badge 
+              key={index}
+              variant="secondary"
+              className="bg-teal-100 text-teal-700 hover:bg-teal-200 text-sm px-3 py-1 rounded-full"
+            >
+              {tag}
+            </Badge>
+          ))}
+        </div>
+
+        {/* Survey Image Placeholder */}
+        <Card className="overflow-hidden border-0 shadow-sm">
+          <div className="bg-gradient-to-br from-slate-200 to-slate-300 h-48 md:h-64 flex items-center justify-center">
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-6 border border-white/30">
+              <FileText className="h-12 w-12 text-slate-600 mx-auto mb-2" />
+              <p className="text-slate-600 text-sm text-center font-medium">Survey Preview</p>
+            </div>
+          </div>
         </Card>
 
+        {/* Tabs for Survey Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="questions" disabled={completed}>
+          <TabsList className="grid w-full grid-cols-2 bg-white shadow-sm">
+            <TabsTrigger value="details" className="data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700">Details</TabsTrigger>
+            <TabsTrigger 
+              value="questions" 
+              disabled={completed}
+              className="data-[state=active]:bg-teal-50 data-[state=active]:text-teal-700"
+            >
               {completed ? "Completed" : "Questions"}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Survey Information</CardTitle>
-                <CardDescription>Review survey details before taking it</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium">Title</h3>
-                    <p className="mt-1">{survey.title}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Description</h3>
-                    <p className="mt-1">{survey.description || "No description provided."}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Status</h3>
-                    <div className="mt-1">{getStatusBadge(survey.status)}</div>
+          <TabsContent value="details" className="space-y-6 mt-6">
+            {/* Information Card */}
+            <Card className="border-0 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
+              <CardContent className="p-6">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-2">
+                    Information about survey/interview/focus group/webinar will have last date mentioned too
+                  </h3>
+                  <p className="text-slate-600 leading-relaxed">
+                    {survey.description || "A comprehensive survey designed to gather insights and feedback from medical professionals."}
+                  </p>
+                  <div className="mt-4 inline-flex items-center space-x-4 text-sm text-slate-600">
+                    <div className="flex items-center">
+                      <Award className="h-4 w-4 text-amber-500 mr-1" />
+                      <span>{survey.points} points</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span>•</span>
+                    </div>
+                    <div>
+                      <span>~{formatTime(survey.estimatedTime)}</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
-              <CardFooter>
-                {completed ? (
-                  <div className="flex items-center space-x-2 text-green-600">
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Survey Completed</span>
+            </Card>
+
+            {/* Rewards Available */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-slate-700 font-medium">Rewards available</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { icon: "💳", label: "UPI Transfer", color: "bg-blue-50 border-blue-200" },
+                    { icon: "🛍️", label: "Amazon Pay", color: "bg-orange-50 border-orange-200" },
+                    { icon: "🎁", label: "Gift Cards", color: "bg-green-50 border-green-200" },
+                    { icon: "💰", label: "Cash Rewards", color: "bg-purple-50 border-purple-200" }
+                  ].map((reward, index) => (
+                    <div 
+                      key={index}
+                      className={`${reward.color} border rounded-lg p-4 text-center transition-all hover:shadow-sm`}
+                    >
+                      <div className="text-2xl mb-2">{reward.icon}</div>
+                      <p className="text-xs font-medium text-slate-700">{reward.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Report Download */}
+            <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-indigo-100 p-2 rounded-lg">
+                      <Download className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-slate-800">Download report when survey completed</h4>
+                      <p className="text-sm text-slate-600">Get detailed survey insights</p>
+                    </div>
                   </div>
-                ) : (
-                  <Button
-                    onClick={handleTakeSurvey}
-                    disabled={takeSurveyMutation.isPending}
-                    className="space-x-2"
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleDownloadReport}
+                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    disabled={!completed}
                   >
-                    {takeSurveyMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Submitting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Take Survey Now</span>
-                      </>
-                    )}
+                    Download
                   </Button>
-                )}
-              </CardFooter>
+                </div>
+              </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="questions" className="space-y-4">
+          <TabsContent value="questions" className="space-y-4 mt-6">
             {completed ? (
-              <Card>
+              <Card className="border-0 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center py-12">
-                  <CheckCircle className="w-16 h-16 text-green-500 mb-4" />
+                  <CheckCircle className="w-16 h-16 text-emerald-500 mb-4" />
                   <h3 className="text-xl font-semibold mb-2">Survey Completed</h3>
-                  <p className="text-gray-500 mb-4">You have already completed this survey.</p>
+                  <p className="text-slate-500 mb-4">You have already completed this survey.</p>
                 </CardContent>
               </Card>
             ) : questionsLoading ? (
               <div className="flex items-center justify-center h-40">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
               </div>
             ) : questions.length === 0 ? (
-              <Card>
+              <Card className="border-0 shadow-sm">
                 <CardContent className="flex flex-col items-center justify-center py-12">
-                  <p className="text-gray-500 mb-4">No questions in this survey yet.</p>
+                  <p className="text-slate-500 mb-4">No questions in this survey yet.</p>
                 </CardContent>
               </Card>
             ) : (
               <>
                 {autoSaving && (
-                  <div className="flex items-center justify-end text-sm text-gray-500">
+                  <div className="flex items-center justify-end text-sm text-slate-500">
                     <Loader2 className="w-3 h-3 animate-spin mr-2" />
                     Saving progress...
                   </div>
                 )}
                 {lastSaved && !autoSaving && (
-                  <div className="flex items-center justify-end text-sm text-gray-500">
+                  <div className="flex items-center justify-end text-sm text-slate-500">
                     Last saved: {format(lastSaved, "HH:mm:ss")}
                   </div>
                 )}
@@ -390,7 +446,28 @@ export default function DoctorSurveyDetails() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Take Survey Button - Only show on details tab and if not completed */}
+        {activeTab === "details" && !completed && (
+          <div className="sticky bottom-4 z-10">
+            <Button
+              onClick={handleTakeSurvey}
+              disabled={takeSurveyMutation.isPending}
+              className="w-full bg-teal-500 hover:bg-teal-600 text-white font-medium py-4 text-lg rounded-xl shadow-lg transition-all hover:shadow-xl disabled:opacity-50"
+              size="lg"
+            >
+              {takeSurveyMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Loading Survey...
+                </>
+              ) : (
+                "Take survey"
+              )}
+            </Button>
+          </div>
+        )}
       </div>
-    </MainLayout>
+    </div>
   );
 }

@@ -60,11 +60,19 @@ export function setupAuth(app: Express) {
   app.use(passport.session());
 
   passport.use(
-    new LocalStrategy(async (username, password, done) => {
+    new LocalStrategy({
+      usernameField: 'username', // Can be email or username
+      passwordField: 'password'
+    }, async (username, password, done) => {
       try {
-        const user = await storage.getUserByUsername(username);
+        // Try to find user by username first, then by email
+        let user = await storage.getUserByUsername(username);
+        if (!user) {
+          user = await storage.getUserByEmail(username);
+        }
+
         if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false, { message: "Invalid username or password" });
+          return done(null, false, { message: "Invalid credentials" });
         }
         return done(null, user);
       } catch (error) {
@@ -179,53 +187,53 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-  try {
-    // Validate login data
-    loginSchema.parse(req.body);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      const validationError = fromZodError(error);
-      return res.status(400).json({ message: validationError.message });
-    }
-    return next(error);
-  }
-
-  passport.authenticate("local", async (err: Error, user: User, info: any) => {
-    if (err) return next(err);
-    if (!user) {
-      return res.status(401).json({ message: info?.message || "Invalid credentials" });
-    }
-    
-    // Need to wrap req.login in a promise since it's callback-based
-    const loginPromise = new Promise<void>((resolve, reject) => {
-      req.login(user, (loginErr) => {
-        if (loginErr) reject(loginErr);
-        else resolve();
-      });
-    });
-
     try {
-      await loginPromise;
-      
-      // Update user status to active if doctor role and not already active
-      if (user.role === 'doctor' && user.status !== 'active') {
-        try {
-          await storage.updateUser(user.id, { status: 'active' });
-          user.status = 'active';
-        } catch (updateError) {
-          console.error('Error updating doctor status:', updateError);
-          // Continue with login even if status update fails
-        }
+      // Validate login data
+      loginSchema.parse(req.body);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
       }
-      
-      // Return user without password
-      const { password, ...userWithoutPassword } = user;
-      return res.status(200).json(userWithoutPassword);
-    } catch (loginError) {
-      return next(loginError);
+      return next(error);
     }
-  })(req, res, next);
-});
+
+    passport.authenticate("local", async (err: Error, user: User, info: any) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+      }
+
+      // Need to wrap req.login in a promise since it's callback-based
+      const loginPromise = new Promise<void>((resolve, reject) => {
+        req.login(user, (loginErr) => {
+          if (loginErr) reject(loginErr);
+          else resolve();
+        });
+      });
+
+      try {
+        await loginPromise;
+
+        // Update user status to active if doctor role and not already active
+        if (user.role === 'doctor' && user.status !== 'active') {
+          try {
+            await storage.updateUser(user.id, { status: 'active' });
+            user.status = 'active';
+          } catch (updateError) {
+            console.error('Error updating doctor status:', updateError);
+            // Continue with login even if status update fails
+          }
+        }
+
+        // Return user without password
+        const { password, ...userWithoutPassword } = user;
+        return res.status(200).json(userWithoutPassword);
+      } catch (loginError) {
+        return next(loginError);
+      }
+    })(req, res, next);
+  });
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) return next(err);
