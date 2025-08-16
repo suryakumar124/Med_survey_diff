@@ -15,10 +15,12 @@ import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useClient } from "@/hooks/use-client";
+import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useQuery } from "@tanstack/react-query";
 
-// Create survey schema
+// Create survey schema - will be dynamically validated based on user role
 const createSurveySchema = z.object({
   title: z.string().min(1, { message: "Title is required" }),
   description: z.string().optional(),
@@ -27,12 +29,20 @@ const createSurveySchema = z.object({
   status: z.enum(["draft", "active"], { message: "Status is required" }),
   tags: z.array(z.string()).optional(),
   redemptionTypes: z.array(z.string()).min(1, { message: "At least one redemption type is required" }),
+  clientId: z.number().optional(), // For admin users
 });
 type CreateSurveyData = z.infer<typeof createSurveySchema>;
 
 export default function ClientSurveys() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { user } = useAuth();
   const { client, isLoading: clientLoading } = useClient();
+  
+  // Fetch all clients for admin users
+  const { data: allClients } = useQuery<Array<{id: number, name: string}>>({
+    queryKey: ["/api/clients"],
+    enabled: user?.role === "admin",
+  });
 
   // Create survey form
   const form = useForm<CreateSurveyData>({
@@ -73,21 +83,38 @@ export default function ClientSurveys() {
   });
 
   const onSubmit = (data: CreateSurveyData) => {
-  if (client) {
+    let clientId: number;
+    
+    if (user?.role === "admin") {
+      // Admin users must select a client
+      if (!data.clientId) {
+        toast({
+          title: "Error", 
+          description: "Please select a client for this survey.",
+          variant: "destructive"
+        });
+        return;
+      }
+      clientId = data.clientId;
+    } else if (client) {
+      // Client users use their own client ID
+      clientId = client.id;
+    } else {
+      toast({
+        title: "Error", 
+        description: "Client information not available. Please try again.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     createSurveyMutation.mutate({
       ...data,
-      clientId: client.id,
+      clientId,
       tags: data.tags || [],
       redemptionTypes: data.redemptionTypes || []
     });
-  } else {
-    toast({
-      title: "Error", 
-      description: "Client information not available. Please try again.",
-      variant: "destructive"
-    });
-  }
-};
+  };
 
   return (
     <MainLayout pageTitle="Surveys" pageDescription="Create and manage your surveys">
@@ -138,6 +165,36 @@ export default function ClientSurveys() {
                     </FormItem>
                   )}
                 />
+
+                {user?.role === "admin" && (
+                  <FormField
+                    control={form.control}
+                    name="clientId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Client</FormLabel>
+                        <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a client for this survey" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {allClients?.map((client) => (
+                              <SelectItem key={client.id} value={client.id.toString()}>
+                                {client.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Choose which client this survey belongs to.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField

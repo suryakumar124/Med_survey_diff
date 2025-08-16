@@ -2,7 +2,8 @@ import { Survey, SurveyWithTags } from "@shared/schema";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Clock, Award, Users, ArrowRight, Bookmark } from "lucide-react";
+import { FileText, Clock, Award, Users, ArrowRight, Bookmark, CheckCircle } from "lucide-react";
+import { format } from "date-fns";
 import { Link } from "wouter";
 
 // Extended survey type with analytics data
@@ -16,9 +17,12 @@ interface SurveyCardProps {
   survey: SurveyWithTags | ExtendedSurvey;
   userRole: string;
   partialResponse?: boolean;
+  completed?: boolean;
+  pointsEarned?: number;
+  completedAt?: string;
 }
 
-export function SurveyCard({ survey, userRole, partialResponse = false }: SurveyCardProps) {
+export function SurveyCard({ survey, userRole, partialResponse = false, completed = false, pointsEarned, completedAt }: SurveyCardProps) {
   // Status badge color
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -65,7 +69,13 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
           <div>
             <div className="flex items-center">
               <h3 className="text-lg font-medium text-gray-900 mb-1">{survey.title}</h3>
-              {partialResponse && (
+              {completed && (
+                <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Completed
+                </Badge>
+              )}
+              {!completed && partialResponse && (
                 <Badge variant="outline" className="ml-2 bg-amber-50 text-amber-700 border-amber-200">
                   <Bookmark className="h-3 w-3 mr-1" />
                   In Progress
@@ -82,8 +92,14 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
               <span>•</span>
               <span className="flex items-center">
                 <Award className="h-4 w-4 mr-1" />
-                {survey.points} points
+                {completed && pointsEarned !== undefined ? `${pointsEarned} points earned` : `${survey.points} points`}
               </span>
+              {completed && completedAt && (
+                <>
+                  <span>•</span>
+                  <span>Completed on {format(new Date(completedAt), 'MMM d, yyyy')}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -127,20 +143,27 @@ export function SurveyCard({ survey, userRole, partialResponse = false }: Survey
           </div>
 
           <div className="mt-2 sm:mt-0">
-            <Link href={getSurveyLink()}>
-              <Button
-                variant={partialResponse ? "default" : "outline"}
-                className="space-x-2"
-              >
-                <span>
-                  {userRole === "doctor"
-                    ? partialResponse ? "Resume Survey" : "Take Survey"
-                    : "View Details"
-                  }
-                </span>
-                <ArrowRight className="h-4 w-4" />
+            {completed ? (
+              <Button variant="outline" disabled className="space-x-2">
+                <CheckCircle className="h-4 w-4" />
+                <span>Completed</span>
               </Button>
-            </Link>
+            ) : (
+              <Link href={getSurveyLink()}>
+                <Button
+                  variant={partialResponse ? "default" : "outline"}
+                  className="space-x-2"
+                >
+                  <span>
+                    {userRole === "doctor"
+                      ? partialResponse ? "Resume Survey" : "Take Survey"
+                      : "View Details"
+                    }
+                  </span>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </CardContent>

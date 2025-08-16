@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
+import AuthPage from "@/pages/auth-page";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -8,7 +9,7 @@ export default function HomePage() {
 
   if (!user) {
     // Show auth flow instead of redirecting
-    return <NewAuthPage />;
+    return <AuthPage />;
   }
 
   // Existing redirect logic for authenticated users
@@ -19,6 +20,8 @@ export default function HomePage() {
       setLocation("/rep/dashboard");
     } else if (user.role === "doctor") {
       setLocation("/doctor/dashboard");
+    } else if (user.role === "admin") {
+      setLocation("/client/dashboard");
     }
   }, [user, setLocation]);
 

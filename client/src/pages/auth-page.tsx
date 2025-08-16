@@ -108,7 +108,7 @@ export default function NewAuthPage() {
                 Medical Survey Platform
               </h1>
               <p className="text-xl text-gray-600 leading-relaxed">
-                Complete surveys, earn points, and redeem rewards. Join thousands of healthcare professionals making a difference.
+                Complete surveys, earn points, and redeem rewards. Join other healthcare professionals in making a difference.
               </p>
             </div>
             
@@ -152,10 +152,7 @@ export default function NewAuthPage() {
           >
             Get Started
           </Button>
-          
-          <p className="text-sm text-gray-500 mt-6">
-            Join over 10,000+ healthcare professionals already earning rewards
-          </p>
+        
         </div>
       </div>
     );

@@ -30,10 +30,11 @@ export function ProtectedRoute({
   }
 
   // Check if the user is trying to access the right section based on their role
+  // Admin users can access client routes
   if (
-    (path.startsWith("/client") && user.role !== "client") ||
-    (path.startsWith("/rep") && user.role !== "rep") ||
-    (path.startsWith("/doctor") && user.role !== "doctor")
+    (path.startsWith("/client") && user.role !== "client" && user.role !== "admin") ||
+    (path.startsWith("/rep") && user.role !== "rep" && user.role !== "admin") ||
+    (path.startsWith("/doctor") && user.role !== "doctor" && user.role !== "admin")
   ) {
     const redirectPath = 
       user.role === "client" ? "/client/dashboard" : 

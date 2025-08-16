@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Search, CheckCircle, Clock, Award } from "lucide-react";
+import { Loader2, Search, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import {
@@ -11,8 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { SurveyCard } from "@/components/survey/survey-card";
 
 // Updated interface for the new response type
 interface Survey {
@@ -73,13 +72,6 @@ export default function DoctorCompletedSurveys() {
     return 0;
   });
 
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'MMM d, yyyy');
-    } catch (e) {
-      return "Unknown date";
-    }
-  };
 
   return (
     <MainLayout pageTitle="Completed Surveys" pageDescription="Surveys you have already completed">
@@ -126,36 +118,14 @@ export default function DoctorCompletedSurveys() {
           {sortedSurveyResponses.length > 0 ? (
             <div className="grid grid-cols-1 gap-6">
               {sortedSurveyResponses.map((response) => (
-                <Card key={response.id} className="overflow-hidden">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                      <div className="flex items-start space-x-4">
-                        <div className="p-3 bg-green-100 rounded-full">
-                          <CheckCircle className="h-6 w-6 text-green-600" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-medium">{response.survey.title}</h3>
-                          <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-                            {response.survey.description || "No description provided."}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3 mt-3">
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Award className="h-4 w-4 mr-1 text-amber-500" />
-                              <span>{response.pointsEarned} points earned</span>
-                            </div>
-                            <div className="flex items-center text-sm text-gray-600">
-                              <Clock className="h-4 w-4 mr-1 text-gray-500" />
-                              <span>Completed on {formatDate(response.completedAt)}</span>
-                            </div>
-                            <Badge variant="outline" className="text-green-600">
-                              Completed
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <SurveyCard 
+                  key={response.id}
+                  survey={response.survey}
+                  userRole="doctor"
+                  completed={true}
+                  pointsEarned={response.pointsEarned}
+                  completedAt={response.completedAt}
+                />
               ))}
             </div>
           ) : (
